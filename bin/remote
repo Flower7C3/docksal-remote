@@ -4,15 +4,17 @@
 ## Usage: fin remote <command> (options)
 ## Commands:
 ##   project|p [up|start|stop|restart|down|open]
-##   mount [up|down]
+##   mount|m [up|down] - start or stop mountpoint on remote server
+##   proxy|x - run docker-compose commands on nginx proxy; see docker-compose
+##   server|s - run `fin` command in project directory on remote server
+##   config|c - current config
+## Shortcuts:
 ##   up - warmup Docksal project; alias to `fin remote project up`
 ##   start - start Docksal project; alias to `fin remote project start`
 ##   restart - restart Docksal project; alias to `fin remote project restart`
 ##   stop - stop Docksal project; alias to `fin remote project stop`
 ##   down - remove Docksal project; alias to `fin remote project down`
 ##   open - open public URL; alias to `fin remote project open`
-##   compose - run docker-compose commands on nginx proxy; see docker-compose
-##   config - current config
 ## Env variables:
 ##   REMOTE_MOUNT_NFS_VERSION - mount command nfs version; default 3
 ##   REMOTE_MACHINE_HOSTNAME - remote server IP/hostname; default local machine IP
@@ -176,8 +178,7 @@ project_command () {
 docker_compose_proxy () {
     print_text_line ${color_green_bold} "Execute docker compose on proxy"
     scp_file ${SCRIPT_ROOT}/${PROXY_APP_CONFIG} ${PROXY_APP_CONFIG}
-    ssh_command "docker-compose --project-name ${PROXY_APP_NAME} --file ${PROXY_APP_CONFIG} $@" \
-        || print_text_line ${color_red} "Docker compose error!"
+    ssh_command "docker-compose --project-name ${PROXY_APP_NAME} --file ${PROXY_APP_CONFIG} $@"
 }
 docksal_project_start () {
     print_text_line ${color_green_bold} "Start Docksal project"
@@ -232,9 +233,9 @@ docksal_to_proxy_network_disconnect () {
 }
 #-------------------------- Functions: DOCKSAL ENV --------------------------------
 docksal_env_setup () {
-    if [[ ! $(fin remote compose ps | grep " Up ") ]]; then
+    if [[ ! $(fin remote proxy ps | grep " Up ") ]]; then
         print_text_line ${color_green_bold} "Start nginx proxy"
-        fin remote compose up -d
+        fin remote proxy up -d
     fi
     if [[ -f ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env ]] || [[ -f ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.yml ]]; then
         docksal_env_reset
@@ -287,11 +288,7 @@ case $1 in
     open)
         fin remote project open
     ;;
-    compose)
-        shift
-        docker_compose_proxy "$@"
-    ;;
-    mount)
+    mount|m)
         shift
         case $1 in
             up)
@@ -340,7 +337,7 @@ case $1 in
             ;;
         esac
     ;;
-    config)
+    config|c)
         print_text_line ${color_green_bold} "Configuration"
         print_text_line ${color_green} "  Env: ${DOCKSAL_ENVIRONMENT}"
         print_text_line ${color_green} "  Mount NFS version: ${REMOTE_MOUNT_NFS_VERSION}"
@@ -353,18 +350,26 @@ case $1 in
         print_text_line ${color_green} "  URL: http://${REMOTE_VIRTUAL_HOST}"
         project_command "fin config"
     ;;
-    xxx)
-        print_text_line ${color_green_bold} "Stop Docker containers"
-        ssh_command "docker stop \$(docker ps -q -a)"
-        print_text_line ${color_green_bold} "Remove Docker containers"
-        ssh_command "docker rm \$(docker ps -q -a)"
-        print_text_line ${color_green_bold} "Remove Docker networks"
-        ssh_command "docker network prune -f"
-        print_text_line ${color_green_bold} "Remove Docker volumes"
-        ssh_command "docker volume rm \$(docker volume ls -q)"
-        docksal_env_reset
-        fin remote mount down
+    proxy|x)
+        shift
+        docker_compose_proxy "$@"
     ;;
+    server|s)
+        shift
+        project_command "fin $@"
+    ;;
+#    cleanall)
+#        print_text_line ${color_green_bold} "Stop Docker containers"
+#        ssh_command "docker stop \$(docker ps -q -a)"
+#        print_text_line ${color_green_bold} "Remove Docker containers"
+#        ssh_command "docker rm \$(docker ps -q -a)"
+#        print_text_line ${color_green_bold} "Remove Docker networks"
+#        ssh_command "docker network prune -f"
+#        print_text_line ${color_green_bold} "Remove Docker volumes"
+#        ssh_command "docker volume rm \$(docker volume ls -q)"
+#        docksal_env_reset
+#        fin remote mount down
+#    ;;
     *)
         fin help remote
     ;;
