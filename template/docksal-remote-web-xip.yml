@@ -1,0 +1,5 @@
+version: "2.1"
+services:
+    web:
+        environment:
+            - VIRTUAL_HOST=${REMOTE_VIRTUAL_HOST}
