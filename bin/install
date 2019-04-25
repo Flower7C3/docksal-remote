@@ -58,11 +58,11 @@ fi
 ##############################################################################################
 ### This will install global command `remote` in Your Docksal home directory               ###
 ##############################################################################################
+echo "Installing 'fin remote' command..."
 mkdir -p ~/.docksal/commands/ &&
     curl -fsSL "https://raw.githubusercontent.com/flower7c3/docksal-remote/master/bin/remote?r=${RANDOM}" -o ~/.docksal/commands/remote &&
+    curl -fsSL "https://raw.githubusercontent.com/flower7c3/docksal-remote/master/template/docker-nginx-proxy.yml?r=${RANDOM}" -o ~/.docksal/commands/docker-nginx-proxy.yml &&
+    curl -fsSL "https://raw.githubusercontent.com/flower7c3/docksal-remote/master/template/docksal-remote-web-xip.yml?r=${RANDOM}" -o ~/.docksal/commands/docksal-remote-web-xip.yml &&
     chmod +x ~/.docksal/commands/remote
-
-curl -fsSL "https://raw.githubusercontent.com/flower7c3/docksal-remote/master/template/docker-nginx-proxy.yml?r=${RANDOM}" -o ~/.docksal/commands/docker-nginx-proxy.yml
-curl -fsSL "https://raw.githubusercontent.com/flower7c3/docksal-remote/master/template/docksal-remote-web-xip.yml?r=${RANDOM}" -o ~/.docksal/commands/docksal-remote-web-xip.yml
 
 ##############################################################################################
