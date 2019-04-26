@@ -16,11 +16,11 @@
 ##   down - remove Docksal project; alias to `fin remote project down`
 ##   open - open public URL; alias to `fin remote project open`
 ## Env variables:
-##   REMOTE_MOUNT_NFS_VERSION - mount command nfs version; default 3
-##   REMOTE_MACHINE_HOSTNAME - remote server IP/hostname; default local machine IP
-##   REMOTE_MACHINE_SSH_PORT - remote server port; default 22
-##   REMOTE_MACHINE_SSH_USER - remote user name; default from local `whoami`
-##   DEVELOPER_MACHINE_HOSTNAME - local machine IP for remote NFS connection; default local machine IP
+##   REMOTE_MOUNT_NFS_VERSION - mount command NFS version; default value is 3, but You can save it in docksal.env file on local computer
+##   REMOTE_MACHINE_HOSTNAME - remote server IP/hostname; there is no default value, so You have to save it in docksal.env file on local computer
+##   REMOTE_MACHINE_SSH_PORT - remote server port; default value is 22, but You can save it in docksal.env file on local computer
+##   REMOTE_MACHINE_SSH_USER - remote user name; there is no default value, so You have to save it in docksal.env file on local computer
+##   DEVELOPER_MACHINE_HOSTNAME - local machine IP for remote NFS connection; default value is local machine IP, but You can save it in docksal.env file on local computer
 
 
 
@@ -177,7 +177,11 @@ project_command () {
 #-------------------------- Functions: DOCKSAL BASE --------------------------------
 docker_compose_proxy () {
     print_text_line ${color_green_bold} "Execute docker compose on proxy"
-    scp_file ${SCRIPT_ROOT}/${PROXY_APP_CONFIG} ${PROXY_APP_CONFIG}
+    local local_config_sha=$(shasum ${SCRIPT_ROOT}/${PROXY_APP_CONFIG} | awk '{print $1}')
+    local remote_config_sha=$(ssh_command "sha1sum ${PROXY_APP_CONFIG}" | awk '{print $1}')
+    if [[ "$local_config_sha" != "$remote_config_sha" ]]; then
+        scp_file ${SCRIPT_ROOT}/${PROXY_APP_CONFIG} ${PROXY_APP_CONFIG}
+    fi
     ssh_command "docker-compose --project-name ${PROXY_APP_NAME} --file ${PROXY_APP_CONFIG} $@"
 }
 docksal_project_start () {
@@ -359,6 +363,7 @@ case $1 in
         project_command "fin $@"
     ;;
 #    cleanall)
+#        fin remote mount up
 #        print_text_line ${color_green_bold} "Stop Docker containers"
 #        ssh_command "docker stop \$(docker ps -q -a)"
 #        print_text_line ${color_green_bold} "Remove Docker containers"
