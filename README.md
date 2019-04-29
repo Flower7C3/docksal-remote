@@ -44,8 +44,8 @@ Main commands in this script:
 
 Short commands in this script:
 * `fin remote up` - alias to `fin remote project up`
-* `fin remote start` - alias to `fin remote project start`
+* `fin remote start`, `fin remote s` - alias to `fin remote project start`
 * `fin remote restart` - alias to `fin remote project restart`
 * `fin remote stop` - alias to `fin remote project stop`
 * `fin remote down` - alias to `fin remote project down`
-* `fin remote open` - alias to `fin remote project open`
+* `fin remote open`, `fin remote www` , `fin remote op` , `fin remote o` - alias to `fin remote project open`

@@ -5,14 +5,14 @@
 ## Commands:
 ##   project|p [up|start|stop|restart|down|open]
 ##   proxy|x - run docker-compose commands on nginx proxy; see docker-compose
-##   config|c - current config
+##   config|cfg|c - current config
 ## Shortcuts:
 ##   up - warmup Docksal project; alias to `fin remote project up`
 ##   start - start Docksal project; alias to `fin remote project start`
 ##   restart - restart Docksal project; alias to `fin remote project restart`
 ##   stop - stop Docksal project; alias to `fin remote project stop`
 ##   down - remove Docksal project; alias to `fin remote project down`
-##   open - open public URL; alias to `fin remote project open`
+##   open|op|o|www - open public URL; alias to `fin remote project open`
 ## Env variables:
 ##   DEVELOPER_MACHINE_HOSTNAME - local machine IP for remote NFS connection; default value is local machine IP, but You can save it in docksal.env file on local computer
 ##   PROJECT_INACTIVITY_TIMEOUT - defines the timeout of inactivity after which the project stack will be stopped; default 0.5h
@@ -270,7 +270,7 @@ _docksal_env_setup () {
     if [[ -f ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env ]] || [[ -f ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.yml ]]; then
         _docksal_env_reset
     fi
-    print_text_line ${color_title} "Setup '${DOCKSAL_ENVIRONMENT}' project environment"
+    print_text_line ${color_title} "Setup project environment as '${DOCKSAL_ENVIRONMENT}'"
     touch ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env
     echo "REMOTE_VIRTUAL_HOST=${REMOTE_VIRTUAL_HOST}" >> ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env
     echo "DEVELOPER_MACHINE_HOSTNAME=${DEVELOPER_MACHINE_HOSTNAME}" >> ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env
@@ -278,7 +278,7 @@ _docksal_env_setup () {
     cp ${SCRIPT_ROOT}/docksal-${DOCKSAL_ENVIRONMENT}.yml ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.yml
 }
 _docksal_env_reset () {
-    print_text_line ${color_title} "Remove '${DOCKSAL_ENVIRONMENT}' project environment"
+    print_text_line ${color_title} "Cleanup project environment from '${DOCKSAL_ENVIRONMENT}'"
     rm ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env 2>/dev/null
     rm ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.yml 2>/dev/null
 }
@@ -318,7 +318,7 @@ case $1 in
     down)
         fin remote project down
     ;;
-    open)
+    open|op|o|www)
         fin remote project open
     ;;
     project|p)
@@ -340,7 +340,7 @@ case $1 in
             down)
                 docksal_project_down
             ;;
-            open)
+            open|op|o|www)
                 docksal_project_open
             ;;
         esac
@@ -349,15 +349,18 @@ case $1 in
         shift
         docker_compose_proxy "$@"
     ;;
-    config|c)
+    config|cfg|c)
         print_text_line ${color_title} "Configuration"
-        print_text_line ${color_green} "  DOCKSAL_ENVIRONMENT: ${color_green_bold}${DOCKSAL_ENVIRONMENT}"
-        print_text_line ${color_green} "  DOCKSAL_HOST: ${color_green_bold}${DOCKSAL_HOST}"
-        print_text_line ${color_green} "  DOCKER_HOST: ${color_green_bold}${DOCKER_HOST}"
-        print_text_line ${color_green} "  REMOTE_HOST_IP: ${color_green_bold}${REMOTE_HOST_IP}"
-        print_text_line ${color_green} "  PROJECT_ROOT: ${color_green_bold}${PROJECT_ROOT}"
-        print_text_line ${color_green} "  REMOTE_VIRTUAL_HOST: ${color_green_bold}${REMOTE_URL_HTTP}"
-        docker exec -t ${PROXY_APP_NAME}_nginx_1 cat /etc/nginx/conf.d/default.conf
+        print_text_line ${color_green} "DOCKSAL_ENVIRONMENT: ${color_green_bold}${DOCKSAL_ENVIRONMENT}"
+        print_text_line ${color_green} "DOCKSAL_HOST: ${color_green_bold}${DOCKSAL_HOST}"
+        print_text_line ${color_green} "DOCKER_HOST: ${color_green_bold}${DOCKER_HOST}"
+        print_text_line ${color_green} "REMOTE_HOST_IP: ${color_green_bold}${REMOTE_HOST_IP}"
+        print_text_line ${color_green} "PROJECT_ROOT: ${color_green_bold}${PROJECT_ROOT}"
+        print_text_line ${color_green} "REMOTE_VIRTUAL_HOST: ${color_green_bold}${REMOTE_URL_HTTP}"
+        print_text_line ${color_green} "NGNIX:"
+        printf "${color_green_bold}"
+        docker exec -t ${PROXY_APP_NAME}_nginx_1 tail -n +46 /etc/nginx/conf.d/default.conf
+        printf "${NC}"
     ;;
 #    cleanall)
 #        print_text_line ${color_title} "Stop Docker containers"
