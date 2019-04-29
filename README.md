@@ -1,3 +1,5 @@
+# Docksal on remote
+
 ## Installation
 
 Install on local computer:
@@ -12,42 +14,38 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Flower7C3/docksal-remote/mas
 
 ## Configuration
 
-In `docksal.env` file You have to configure following variables:
-* `REMOTE_MACHINE_HOSTNAME` - remote server IP/hostname
-* `REMOTE_MACHINE_SSH_USER` - remote user name for SSH login
+Before run `fin remote` command in project, You have to setup `DOCKSAL_ENVIRONMENT` and `DOCKSAL_HOST` variables.
+First variable will setup valid environment for variables and docker-compose configuration, second indicates which server will be used (just write valid IP and PORT)
+```
+export DOCKSAL_ENVIRONMENT="remote-web-xip"
+export DOCKSAL_HOST="tcp://IP:PORT"
+```
 
-> Configuration do not store remote SSH user password. Script will ask You for password on each SSH connection, but You can configure passwordless connection with SSH keys.
-
-There are also optional variables:
-* `REMOTE_MOUNT_NFS_VERSION` - mount command NFS version; default value is 3
-* `REMOTE_MACHINE_SSH_PORT` - remote server port; default value is 22
+In `docksal.env` file You can configure optional variables:
 * `DEVELOPER_MACHINE_HOSTNAME` - local machine IP for remote NFS connection; default value is local machine IP
-
-You can save this configuration in project or globally. The easiest way is to execute `fin config set` command. Eg:
-
-* `fin config set REMOTE_MACHINE_SSH_USER=john.doe` - will save `REMOTE_MACHINE_SSH_USER` variable with *john.doe* value in project `.docksal/docksal.env` file 
-* `fin config set --global REMOTE_MACHINE_SSH_USER=jane.doe` - will save `REMOTE_MACHINE_SSH_USER` variable with *jane.doe* value in global `~/.docksal/docksal.env` file 
+* `PROJECT_INACTIVITY_TIMEOUT` - defines the timeout of inactivity after which the project stack will be stopped; default 0.5h
 
 ## Usage
 
 In project directory where Docksal configuration exist just type `fin remote` command.
-There are several commands in this script:
-* `project`, `p` - work with project
-    * `up` - warmup Docksal project; mount project on remote server, configure env files and run `fin up` on remote server
-    * `start` - start Docksal project; mount project on remote server, configure env files and run `fin start` on remote server
-    * `stop` - stop Docksal project; run `fin stop` on remote server, remote env files and umount project on remote server
-    * `down` - remove Docksal project; run `fin remove -f` on remote server, remote env files and umount project on remote server
-    * `restart` - restart Docksal project; run `fin remote project stop`, then `fin remote project start` on local 
-    * `open` - open public project URL with `open` command
-* `mount`, `m` - work with mountpoints
-    * `up` - add valid path to `/etc/exports` file on local and mount project directory on remote server
-    * `down` - umount directory on remote server and remove path from exports file on local
-* `proxy`, `x` - run docker-compose commands on nginx proxy, all extra parameters are same like in `docker-compose` command
-* `server`, `s` - run `fin` command in project directory on remote server
-* `config`, `c` - shows config
-* `up` - shortcut to `fin remote project up`
-* `start` - shortcut to `fin remote project start`
-* `restart` - shortcut to `fin remote project restart`
-* `stop` - shortcut to `fin remote project stop`
-* `down` - shortcut to `fin remote project down`
-* `open` - shortcut to `fin remote project open`
+
+> Do NOT use *fin project*, *fin start*, *fin stop*, etc. commands!
+
+Main commands in this script:
+* `fin remote project`, `fin remote p` - work with project:
+    * `fin remote project up` - warmup Docksal project: setup NFS connection, configure env files and run *fin up*
+    * `fin remote project start` - start Docksal project: setup NFS connection, configure env files and run *fin start*
+    * `fin remote project stop` - stop Docksal project: run *fin stop*, remote env files and cleanup NFS connection
+    * `fin remote project down` - remove Docksal project: run *fin remove -f*, remove env files and cleanup NFS connection
+    * `fin remote project restart` - restart Docksal project: run `fin remote project stop`, then `fin remote project start` on local 
+    * `fin remote project open` - open public project URL with `open` command
+* `fin remote proxy`, `fin remote x` - run docker-compose commands on nginx proxy, all extra parameters are same like in `docker-compose` command
+* `fin remote config`, `fin remote c` - shows stack config
+
+Short commands in this script:
+* `fin remote up` - alias to `fin remote project up`
+* `fin remote start` - alias to `fin remote project start`
+* `fin remote restart` - alias to `fin remote project restart`
+* `fin remote stop` - alias to `fin remote project stop`
+* `fin remote down` - alias to `fin remote project down`
+* `fin remote open` - alias to `fin remote project open`

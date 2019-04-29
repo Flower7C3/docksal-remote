@@ -1,5 +1,27 @@
 version: "2.1"
 services:
+    cli:
+        volumes:
+            # Project root volume
+            - project_root:/var/www:rw,nocopy
+            # Shared ssh-agent socket
+            - docksal_ssh_agent:/.ssh-agent:ro
     web:
+        volumes:
+            # Project root volume
+            - project_root:/var/www:rw,nocopy
+            # Shared ssh-agent socket
+            - docksal_ssh_agent:/.ssh-agent:ro
         environment:
             - VIRTUAL_HOST=${REMOTE_VIRTUAL_HOST}
+volumes:
+    cli_home:  # /home/docker volume in cli
+    project_root:  # Project root volume (NFS)
+        driver: local
+        driver_opts:
+            type: nfs
+            device: ${DEVELOPER_MACHINE_HOSTNAME}:${PROJECT_ROOT}
+            o: addr=${DEVELOPER_MACHINE_HOSTNAME},vers=3,nolock,noacl,nocto,noatime,nodiratime,actimeo=1
+    db_data:  # Database data volume (bind)
+    docksal_ssh_agent:  # Shared ssh-agent volume
+        external: true

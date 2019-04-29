@@ -4,9 +4,7 @@
 ## Usage: fin remote <command> (options)
 ## Commands:
 ##   project|p [up|start|stop|restart|down|open]
-##   mount|m [up|down] - start or stop mountpoint on remote server
 ##   proxy|x - run docker-compose commands on nginx proxy; see docker-compose
-##   server|s - run `fin` command in project directory on remote server
 ##   config|c - current config
 ## Shortcuts:
 ##   up - warmup Docksal project; alias to `fin remote project up`
@@ -16,12 +14,8 @@
 ##   down - remove Docksal project; alias to `fin remote project down`
 ##   open - open public URL; alias to `fin remote project open`
 ## Env variables:
-##   REMOTE_MOUNT_NFS_VERSION - mount command NFS version; default value is 3, but You can save it in docksal.env file on local computer
-##   REMOTE_MACHINE_HOSTNAME - remote server IP/hostname; there is no default value, so You have to save it in docksal.env file on local computer
-##   REMOTE_MACHINE_SSH_PORT - remote server port; default value is 22, but You can save it in docksal.env file on local computer
-##   REMOTE_MACHINE_SSH_USER - remote user name; there is no default value, so You have to save it in docksal.env file on local computer
 ##   DEVELOPER_MACHINE_HOSTNAME - local machine IP for remote NFS connection; default value is local machine IP, but You can save it in docksal.env file on local computer
-
+##   PROJECT_INACTIVITY_TIMEOUT - defines the timeout of inactivity after which the project stack will be stopped; default 0.5h
 
 
 #-------------------------- Helper functions: Console colors --------------------------------
@@ -33,13 +27,15 @@ color_green_bold='\033[1;92m'
 color_green_bg='\033[42m'
 color_yellow='\033[0;33m'
 color_yellow_bold='\033[1;93m'
+color_title='\033[1;42m'
 NC='\033[0m'
 #-------------------------- Helper functions: I/O --------------------------------
 print_text () {
     printf "${1}${2}${NC}"
 }
 print_text_line () {
-    print_text "$1" "$2\n"
+    print_text "$1" "$2"
+    printf "\n"
 }
 display-error (){
     local message=$1
@@ -80,20 +76,12 @@ is_mac () {
 
 #-------------------------- Settings --------------------------------
 errors=0
-#if [[ "$DOCKSAL_ENVIRONMENT" != "remote-web-xip" ]]; then
-#    display-error "Invalid Docksal environment. Please export DOCKSAL_ENVIRONMENT=\"remote-web-xip\""
-#fi
-if [[ -z ${REMOTE_MOUNT_NFS_VERSION} ]]; then
-    REMOTE_MOUNT_NFS_VERSION=3
+_DOCKSAL_ENVIRONMENT="remote-web-xip"
+if [[ "${DOCKSAL_ENVIRONMENT}" != "${_DOCKSAL_ENVIRONMENT}" ]]; then
+    display-error 'Invalid Docksal environment. Please run `export DOCKSAL_ENVIRONMENT="'${_DOCKSAL_ENVIRONMENT}'"`'
 fi
-if [[ -z ${REMOTE_MACHINE_SSH_USER} ]]; then
-    display-error "Unknown Docker remote server user name. Please specify REMOTE_MACHINE_SSH_USER in .env file."
-fi
-if [[ -z ${REMOTE_MACHINE_SSH_PORT} ]]; then
-    REMOTE_MACHINE_SSH_PORT=22
-fi
-if [[ -z ${REMOTE_MACHINE_HOSTNAME} ]]; then
-    display-error "Unknown Docker remote server IP. Please specify REMOTE_MACHINE_HOSTNAME in .env file."
+if [[ "${DOCKSAL_HOST}" == "" ]]; then
+    display-error 'Invalid Docksal host. Please run `export DOCKSAL_HOST="tcp://IP:PORT"` with valid remote IP and PORT'
 fi
 if [[ -z ${DEVELOPER_MACHINE_HOSTNAME} ]]; then
     if is_mac; then
@@ -104,10 +92,12 @@ if [[ -z ${DEVELOPER_MACHINE_HOSTNAME} ]]; then
         display-error "Unknown local developer IP. Please specify DEVELOPER_MACHINE_HOSTNAME in .env file."
     fi
 fi
-if [[ -z ${REMOTE_PROJECT_ROOT} ]]; then
-    REMOTE_PROJECT_ROOT="/var/project/${COMPOSE_PROJECT_NAME_SAFE}"
+if [[ -z ${PROJECT_INACTIVITY_TIMEOUT} ]]; then
+    PROJECT_INACTIVITY_TIMEOUT="0.5h"
 fi
-REMOTE_VIRTUAL_HOST="${VIRTUAL_HOST}.${REMOTE_MACHINE_HOSTNAME}.xip.io"
+REMOTE_HOST_IP=$(echo $DOCKSAL_HOST | awk -F/ '{print $3}' | sed 's/:.*//')
+REMOTE_VIRTUAL_HOST="${VIRTUAL_HOST}.${REMOTE_HOST_IP}.xip.io"
+REMOTE_URL_HTTP="http://${REMOTE_VIRTUAL_HOST}"
 if [[ "$errors" != "0" ]]; then
     exit $exit_code
 fi
@@ -115,7 +105,6 @@ SCRIPT_ROOT=$(cd `dirname $0` && pwd)
 PROJECT_ROOT_ESCAPED=$(echo "$PROJECT_ROOT" | sed 's/\//\\\//g')
 PROXY_APP_NAME="proxyapp"
 PROXY_APP_CONFIG="docker-nginx-proxy.yml"
-DOCKSAL_ENVIRONMENT="remote-web-xip"
 DOCKSAL_VHOST_PROXY_PORT_HTTP=8080
 DOCKSAL_VHOST_PROXY_PORT_HTTPS=8443
 #-------------------------- END: Settings --------------------------------
@@ -123,16 +112,36 @@ DOCKSAL_VHOST_PROXY_PORT_HTTPS=8443
 
 
 #-------------------------- Functions: NFS --------------------------------
-local_nfs_setup () {
-    print_text_line ${color_green_bold} "Prepare exports file"
-    echo "${PROJECT_ROOT} ${REMOTE_MACHINE_HOSTNAME}" | sudo tee -a /etc/exports
+nfs_up () {
+    if is_linux || is_mac ; then
+        has_exports=$(grep "${PROJECT_ROOT} ${REMOTE_HOST_IP}" /etc/exports)
+        if [[ -z "$has_exports" ]]; then
+            (\
+                print_text_line ${color_title} "Prepare exports file" \
+                && \
+                print_text_line ${color_green} "You may be asked for root password to modify '/etc/exports' file" \
+                && \
+                echo "${PROJECT_ROOT} ${REMOTE_HOST_IP}" | sudo tee -a /etc/exports \
+                && \
+                _local_nfs_reload \
+            )
+        fi
+    fi
 }
-local_nfs_cleanup () {
-    print_text_line ${color_green_bold} "Cleanup local NFS exports"
-    sed '/^'$PROJECT_ROOT_ESCAPED'/d' /etc/exports | sudo tee /etc/exports >/dev/null
+nfs_down () {
+    if is_linux || is_mac ; then
+        (\
+            print_text_line ${color_title} "Cleanup local NFS exports" \
+            && \
+            print_text_line ${color_green} "You may be asked for root password to modify '/etc/exports' file" \
+            && \
+            sed '/^'$PROJECT_ROOT_ESCAPED'/d' /etc/exports | sudo tee /etc/exports >/dev/null \
+            && \
+            _local_nfs_reload \
+        )
+    fi
 }
-local_nfs_reload () {
-    print_text_line ${color_green_bold} "Reload NFS"
+_local_nfs_reload () {
 	if is_linux ; then
 		sudo exportfs -a
 	fi
@@ -140,132 +149,152 @@ local_nfs_reload () {
 		sudo nfsd restart
 	fi
 }
-#-------------------------- Functions: mountpoint --------------------------------
-mountpoint_start () {
-    if is_linux || is_mac ; then
-        has_exports=$(grep "${PROJECT_ROOT} ${REMOTE_MACHINE_HOSTNAME}" /etc/exports)
-        if [[ -z "$has_exports" ]]; then
-            local_nfs_setup
-            local_nfs_reload
-        fi
-    fi
-    print_text_line ${color_green_bold} "Mount local ${DEVELOPER_MACHINE_HOSTNAME}${PROJECT_ROOT} on server ${REMOTE_MACHINE_HOSTNAME}${REMOTE_PROJECT_ROOT}"
-    ssh_command "grep -v -q \"\$(readlink -f $REMOTE_PROJECT_ROOT)\" /proc/mounts && mkdir -p ${REMOTE_PROJECT_ROOT} && mount -t nfs -o vers=${REMOTE_MOUNT_NFS_VERSION} ${DEVELOPER_MACHINE_HOSTNAME}:${PROJECT_ROOT} ${REMOTE_PROJECT_ROOT}"
-}
-mountpoint_stop () {
-    print_text_line ${color_green_bold} "Umont mountpoint on server"
-    ssh_command "umount ${REMOTE_PROJECT_ROOT} 2>/dev/null ; rmdir ${REMOTE_PROJECT_ROOT} 2>/dev/null"
-    if is_linux || is_mac ; then
-        local_nfs_cleanup
-        local_nfs_reload
-    fi
-}
-#-------------------------- Functions: COMMANDS --------------------------------
-ssh_command () {
-    local command=${@:-"pwd"}
-    ssh -p ${REMOTE_MACHINE_SSH_PORT} ${REMOTE_MACHINE_SSH_USER}@${REMOTE_MACHINE_HOSTNAME} "${command}" 2> /dev/null
-}
-scp_file () {
-    local source_path=${1}
-    local destination_path=${2}
-    scp -P ${REMOTE_MACHINE_SSH_PORT} ${source_path} ${REMOTE_MACHINE_SSH_USER}@${REMOTE_MACHINE_HOSTNAME}:${destination_path}
-}
-project_command () {
-    local command=${@:-"pwd"}
-    ssh_command "cd ${REMOTE_PROJECT_ROOT} && export DOCKSAL_ENVIRONMENT=\"$DOCKSAL_ENVIRONMENT\" && ${command}"
-}
 #-------------------------- Functions: DOCKSAL BASE --------------------------------
 docker_compose_proxy () {
-    print_text_line ${color_green_bold} "Execute docker compose on proxy"
-    local local_config_sha=$(shasum ${SCRIPT_ROOT}/${PROXY_APP_CONFIG} | awk '{print $1}')
-    local remote_config_sha=$(ssh_command "sha1sum ${PROXY_APP_CONFIG}" | awk '{print $1}')
-    if [[ "$local_config_sha" != "$remote_config_sha" ]]; then
-        scp_file ${SCRIPT_ROOT}/${PROXY_APP_CONFIG} ${PROXY_APP_CONFIG}
-    fi
-    ssh_command "docker-compose --project-name ${PROXY_APP_NAME} --file ${PROXY_APP_CONFIG} $@"
+    print_text_line ${color_title} "Execute docker-compose on ${PROXY_APP_NAME}"
+    docker-compose --project-name ${PROXY_APP_NAME} --file ${SCRIPT_ROOT}/${PROXY_APP_CONFIG} $@
 }
 docksal_project_start () {
-    print_text_line ${color_green_bold} "Start Docksal project"
     (\
-        project_command "fin start" \
+        _docksal_env_setup \
+        && \
+        nfs_up \
+        && \
+        (\
+            print_text_line ${color_title} "Start project on Docksal" \
+            && \
+            fin start \
+        )\
         && \
         ( \
             ( \
-                docksal_to_proxy_network_connect \
-                && \
-                project_command "fin start" \
+                ( \
+                    docksal_to_proxy_network_connect \
+                    && \
+                    fin start \
+                )\
             ) \
             || \
             print_text_line ${color_green} "Container '${PROXY_APP_NAME}' already connected to '${COMPOSE_PROJECT_NAME_SAFE}_default' network." \
         ) \
         && \
-        print_text_line ${color_green_bold} "Project public URL: http://${REMOTE_VIRTUAL_HOST}" \
+        print_text_line ${color_title} "Project public URL: ${REMOTE_URL_HTTP}" \
     ) || print_text_line ${color_red} "Project not started!"
 }
 docksal_project_up () {
-    print_text_line ${color_green_bold} "WarmUp Docksal project"
     (\
-        project_command "fin up" \
+        _docksal_env_setup \
+        && \
+        nfs_up \
+        && \
+        (\
+            print_text_line ${color_title} "WarmUp project on Docksal" \
+            && \
+            fin up \
+        ) \
         && \
         ( \
             ( \
                 docksal_to_proxy_network_connect \
                 && \
-                project_command "fin start" \
+                fin start \
             ) \
             || \
             print_text_line ${color_green} "Container '${PROXY_APP_NAME}' already connected to '${COMPOSE_PROJECT_NAME_SAFE}_default' network." \
         ) \
         && \
-        print_text_line ${color_green_bold} "Project public URL: http://${REMOTE_VIRTUAL_HOST}" \
+        print_text_line ${color_title} "Project public URL: ${REMOTE_URL_HTTP}" \
     ) || print_text_line ${color_red} "Project not warmed-up!"
 }
 docksal_project_stop () {
-    print_text_line ${color_green_bold} "Stop Docksal project"
-    project_command "fin stop"
+    ( \
+        docksal_to_proxy_network_disconnect \
+        && \
+        (\
+            (\
+                print_text_line ${color_title} "Stop project on Docksal" \
+                && \
+                fin stop \
+            ) || print_text_line ${color_red} "Project not stopped!"
+        )\
+        && \
+        nfs_down \
+        && \
+        _docksal_env_reset \
+    )
 }
 docksal_project_down () {
-    print_text_line ${color_green_bold} "Remove Docksal project"
-    project_command "fin remove -f"
+    ( \
+        docksal_to_proxy_network_disconnect \
+        && \
+        (\
+            (\
+                print_text_line ${color_title} "Remove project on Docksal" \
+                && \
+                fin remove -f \
+            ) || print_text_line ${color_red} "Project not removed!"
+        )\
+        && \
+        nfs_down \
+        && \
+        _docksal_env_reset \
+    )
+}
+docksal_project_open () {
+    print_text_line ${color_title} "Open ${REMOTE_URL_HTTP}"
+    open ${REMOTE_URL_HTTP}
 }
 #-------------------------- Functions: DOCKSAL NETWORK --------------------------------
 docksal_to_proxy_network_connect () {
-    ssh_command "docker network connect ${COMPOSE_PROJECT_NAME_SAFE}_default ${PROXY_APP_NAME}_nginx_1 2>/dev/null"
+    local network="${COMPOSE_PROJECT_NAME_SAFE}_default"
+    (\
+        print_text_line ${color_title} "Connect '${PROXY_APP_NAME}' container to project network" \
+        && \
+        docker network connect "$network" ${PROXY_APP_NAME}_nginx_1 2>/dev/null \
+    ) || printf ""
 }
 docksal_to_proxy_network_disconnect () {
-    ssh_command "docker network disconnect ${COMPOSE_PROJECT_NAME_SAFE}_default ${PROXY_APP_NAME}_nginx_1"
+    local network="${COMPOSE_PROJECT_NAME_SAFE}_default"
+    (\
+        print_text_line ${color_title} "Disconnect '${PROXY_APP_NAME}' container from project network" \
+        && \
+        docker network disconnect "$network" ${PROXY_APP_NAME}_nginx_1 \
+    ) || printf ""
 }
 #-------------------------- Functions: DOCKSAL ENV --------------------------------
-docksal_env_setup () {
+_docksal_env_setup () {
     if [[ ! $(fin remote proxy ps | grep " Up ") ]]; then
-        print_text_line ${color_green_bold} "Start nginx proxy"
+        print_text_line ${color_title} "Start ${PROXY_APP_NAME}"
         fin remote proxy up -d
     fi
     if [[ -f ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env ]] || [[ -f ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.yml ]]; then
-        docksal_env_reset
+        _docksal_env_reset
     fi
-    print_text_line ${color_green_bold} "Setup Docksal ${DOCKSAL_ENVIRONMENT} environment"
-    echo "REMOTE_VIRTUAL_HOST=${REMOTE_VIRTUAL_HOST}" > ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env
+    print_text_line ${color_title} "Setup '${DOCKSAL_ENVIRONMENT}' project environment"
+    touch ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env
+    echo "REMOTE_VIRTUAL_HOST=${REMOTE_VIRTUAL_HOST}" >> ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env
+    echo "DEVELOPER_MACHINE_HOSTNAME=${DEVELOPER_MACHINE_HOSTNAME}" >> ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env
+    echo "PROJECT_INACTIVITY_TIMEOUT=${PROJECT_INACTIVITY_TIMEOUT}" >> ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env
     cp ${SCRIPT_ROOT}/docksal-${DOCKSAL_ENVIRONMENT}.yml ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.yml
 }
-docksal_env_reset () {
-    print_text_line ${color_green_bold} "Remove Docksal ${DOCKSAL_ENVIRONMENT} environment"
+_docksal_env_reset () {
+    print_text_line ${color_title} "Remove '${DOCKSAL_ENVIRONMENT}' project environment"
     rm ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.env 2>/dev/null
     rm ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.yml 2>/dev/null
 }
 docksal_vhost_proxy_ports_check () {
-    print_text_line ${color_green_bold} "Check Docksal vhost proxy ports"
+    print_text_line ${color_title} "Check docksal-vhost-proxy ports"
 
-    local remote_docksal_vhost_proxy_port_http=$(ssh_command "fin config get --global DOCKSAL_VHOST_PROXY_PORT_HTTP" | sed 's/[^0-9]*//g')
+    local remote_docksal_vhost_proxy_port_http=$(fin config get --global DOCKSAL_VHOST_PROXY_PORT_HTTP | sed 's/[^0-9]*//g')
     remote_docksal_vhost_proxy_port_http=$(echo $remote_docksal_vhost_proxy_port_http | tr -s '[:blank:]')
-    local remote_docksal_vhost_proxy_port_https=$(ssh_command "fin config get --global DOCKSAL_VHOST_PROXY_PORT_HTTPS" | sed 's/[^0-9]*//g')
+    local remote_docksal_vhost_proxy_port_https=$(fin config get --global DOCKSAL_VHOST_PROXY_PORT_HTTPS | sed 's/[^0-9]*//g')
     remote_docksal_vhost_proxy_port_https=$(echo $remote_docksal_vhost_proxy_port_https | tr -s '[:blank:]')
 
     if [[ "$remote_docksal_vhost_proxy_port_http" != "$DOCKSAL_VHOST_PROXY_PORT_HTTP" ]]; then
-        ssh_command "fin config set --global DOCKSAL_VHOST_PROXY_PORT_HTTP=$DOCKSAL_VHOST_PROXY_PORT_HTTP"
+        fin config set --global DOCKSAL_VHOST_PROXY_PORT_HTTP=$DOCKSAL_VHOST_PROXY_PORT_HTTP
     fi
     if [[ "$remote_docksal_vhost_proxy_port_https" != "$DOCKSAL_VHOST_PROXY_PORT_HTTPS" ]]; then
-        ssh_command "fin config set --global DOCKSAL_VHOST_PROXY_PORT_HTTPS=$DOCKSAL_VHOST_PROXY_PORT_HTTPS"
+        fin config set --global DOCKSAL_VHOST_PROXY_PORT_HTTPS=$DOCKSAL_VHOST_PROXY_PORT_HTTPS
     fi
 }
 #-------------------------- END: Functions --------------------------------
@@ -292,88 +321,54 @@ case $1 in
     open)
         fin remote project open
     ;;
-    mount|m)
-        shift
-        case $1 in
-            up)
-                mountpoint_start
-            ;;
-            down)
-                mountpoint_stop
-            ;;
-        esac
-    ;;
     project|p)
         docksal_vhost_proxy_ports_check
         shift
         case $1 in
             restart)
-                fin remote project stop
-                fin remote project start
+                docksal_project_stop && sleep 1 && docksal_project_start
             ;;
             up)
-                fin remote mount up
-                docksal_env_setup
                 docksal_project_up
             ;;
             start)
-                fin remote mount up
-                docksal_env_setup
                 docksal_project_start
             ;;
             stop)
-                fin remote mount up
                 docksal_project_stop
-                docksal_to_proxy_network_disconnect
-                docksal_env_reset
-                fin remote mount down
             ;;
             down)
-                fin remote mount up
                 docksal_project_down
-                docksal_to_proxy_network_disconnect
-                docksal_env_reset
-                fin remote mount down
             ;;
             open)
-                print_text_line ${color_green_bold} "Open http://${REMOTE_VIRTUAL_HOST}"
-                open http://${REMOTE_VIRTUAL_HOST}
+                docksal_project_open
             ;;
         esac
-    ;;
-    config|c)
-        print_text_line ${color_green_bold} "Configuration"
-        print_text_line ${color_green} "  Env: ${DOCKSAL_ENVIRONMENT}"
-        print_text_line ${color_green} "  Mount NFS version: ${REMOTE_MOUNT_NFS_VERSION}"
-        print_text_line ${color_green} "  Developer hostname: ${DEVELOPER_MACHINE_HOSTNAME}"
-        print_text_line ${color_green_bold} "Local:"
-        print_text_line ${color_green} "  Path: ${PROJECT_ROOT}"
-        print_text_line ${color_green} "  URL: http://${VIRTUAL_HOST}"
-        print_text_line ${color_green_bold} "Remote:"
-        print_text_line ${color_green} "  Path: ${REMOTE_MACHINE_SSH_USER}@${REMOTE_MACHINE_HOSTNAME}:${REMOTE_MACHINE_SSH_PORT}${REMOTE_PROJECT_ROOT}"
-        print_text_line ${color_green} "  URL: http://${REMOTE_VIRTUAL_HOST}"
-        project_command "fin config"
     ;;
     proxy|x)
         shift
         docker_compose_proxy "$@"
     ;;
-    server|s)
-        shift
-        project_command "fin $@"
+    config|c)
+        print_text_line ${color_title} "Configuration"
+        print_text_line ${color_green} "  DOCKSAL_ENVIRONMENT: ${color_green_bold}${DOCKSAL_ENVIRONMENT}"
+        print_text_line ${color_green} "  DOCKSAL_HOST: ${color_green_bold}${DOCKSAL_HOST}"
+        print_text_line ${color_green} "  DOCKER_HOST: ${color_green_bold}${DOCKER_HOST}"
+        print_text_line ${color_green} "  REMOTE_HOST_IP: ${color_green_bold}${REMOTE_HOST_IP}"
+        print_text_line ${color_green} "  PROJECT_ROOT: ${color_green_bold}${PROJECT_ROOT}"
+        print_text_line ${color_green} "  REMOTE_VIRTUAL_HOST: ${color_green_bold}${REMOTE_URL_HTTP}"
+        docker exec -t ${PROXY_APP_NAME}_nginx_1 cat /etc/nginx/conf.d/default.conf
     ;;
 #    cleanall)
-#        fin remote mount up
-#        print_text_line ${color_green_bold} "Stop Docker containers"
-#        ssh_command "docker stop \$(docker ps -q -a)"
-#        print_text_line ${color_green_bold} "Remove Docker containers"
-#        ssh_command "docker rm \$(docker ps -q -a)"
-#        print_text_line ${color_green_bold} "Remove Docker networks"
-#        ssh_command "docker network prune -f"
-#        print_text_line ${color_green_bold} "Remove Docker volumes"
-#        ssh_command "docker volume rm \$(docker volume ls -q)"
-#        docksal_env_reset
-#        fin remote mount down
+#        print_text_line ${color_title} "Stop Docker containers"
+#        docker stop $(docker ps -q -a)
+#        print_text_line ${color_title} "Remove Docker containers"
+#        docker rm $(docker ps -q -a)
+#        print_text_line ${color_title} "Remove Docker networks"
+#        docker network prune -f
+#        print_text_line ${color_title} "Remove Docker volumes"
+#        docker volume rm $(docker volume ls -q)
+#        _docksal_env_reset
 #    ;;
     *)
         fin help remote
