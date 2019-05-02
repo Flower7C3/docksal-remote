@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
 
-##############################################################################################
-### This will remove global command `remote` from Your Docksal home directory              ###
-##############################################################################################
 echo "Removing 'fin remote' command..."
 rm -rf ~/.docksal/commands/remote ~/.docksal/commands/docker-nginx-proxy.yml ~/.docksal/commands/docksal-remote-web-xip.yml
-
-##############################################################################################
