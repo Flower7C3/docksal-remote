@@ -15,8 +15,6 @@ services:
         extends:
             file: ${HOME}/.docksal/stacks/services.yml
             service: mysql
-        volumes:
-            - db_data:/var/www:rw,nocopy
 
     cli:
         extends:
@@ -30,10 +28,4 @@ volumes:
         driver_opts:
             type: nfs
             device: ${DEVELOPER_MACHINE_HOSTNAME}:${PROJECT_ROOT}
-            o: addr=${DEVELOPER_MACHINE_HOSTNAME},vers=3,nolock,noacl,nocto,noatime,nodiratime,actimeo=1
-    db_data:
-        driver: local
-        driver_opts:
-            type: nfs
-            device: ${DEVELOPER_MACHINE_HOSTNAME}:${PROJECT_DB_ROOT}
             o: addr=${DEVELOPER_MACHINE_HOSTNAME},vers=3,nolock,noacl,nocto,noatime,nodiratime,actimeo=1

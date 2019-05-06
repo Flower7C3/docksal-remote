@@ -497,7 +497,7 @@ case $1 in
                         fi
                     done
                 fi
-                docksal_project_down && sleep 1 && docksal_project_up
+                docksal_project_down && sleep 1 && docksal_project_start
             ;;
             start|s)
                 docksal_project_start
