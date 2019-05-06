@@ -9,17 +9,31 @@ services:
         environment:
             - VIRTUAL_HOST=${REMOTE_VIRTUAL_HOST}
         volumes:
-            - project_root:/var/www:rw,nocopy  # Project root volume
+            - project_root:/var/www:rw,nocopy
+
+    db:
+        extends:
+            file: ${HOME}/.docksal/stacks/services.yml
+            service: mysql
+        volumes:
+            - db_data:/var/www:rw,nocopy
+
     cli:
         extends:
             file: ${HOME}/.docksal/stacks/services.yml
             service: cli
         volumes:
-            - project_root:/var/www:rw,nocopy  # Project root volume
+            - project_root:/var/www:rw,nocopy
 volumes:
-    project_root:  # Project root volume (NFS)
+    project_root:
         driver: local
         driver_opts:
             type: nfs
             device: ${DEVELOPER_MACHINE_HOSTNAME}:${PROJECT_ROOT}
+            o: addr=${DEVELOPER_MACHINE_HOSTNAME},vers=3,nolock,noacl,nocto,noatime,nodiratime,actimeo=1
+    db_data:
+        driver: local
+        driver_opts:
+            type: nfs
+            device: ${DEVELOPER_MACHINE_HOSTNAME}:${PROJECT_DB_ROOT}
             o: addr=${DEVELOPER_MACHINE_HOSTNAME},vers=3,nolock,noacl,nocto,noatime,nodiratime,actimeo=1

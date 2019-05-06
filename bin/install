@@ -4,5 +4,6 @@ echo "Installing 'fin remote' command..."
 mkdir -p ~/.docksal/commands/ &&
     curl -fsSL "https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/bin/remote?r=${RANDOM}" -o ~/.docksal/commands/remote &&
     curl -fsSL "https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/template/docker-nginx-proxy.yml?r=${RANDOM}" -o ~/.docksal/commands/docker-nginx-proxy.yml &&
-    curl -fsSL "https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/template/docksal-remote-web-xip.yml?r=${RANDOM}" -o ~/.docksal/commands/docksal-remote-web-xip.yml &&
+    curl -fsSL "https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/template/docksal-remote-default.yml?r=${RANDOM}" -o ~/.docksal/commands/docksal-remote-default.yml &&
+    curl -fsSL "https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/template/docksal-remote-default-nodb.yml?r=${RANDOM}" -o ~/.docksal/commands/docksal-remote-default-nodb.yml &&
     chmod +x ~/.docksal/commands/remote

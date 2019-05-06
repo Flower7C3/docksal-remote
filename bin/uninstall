@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
 
 echo "Removing 'fin remote' command..."
-rm -rf ~/.docksal/commands/remote ~/.docksal/commands/docker-nginx-proxy.yml ~/.docksal/commands/docksal-remote-web-xip.yml
+rm -rf ~/.docksal/commands/remote
+echo "Removing templates..."
+rm -rf ~/.docksal/commands/docker-nginx-proxy.yml ~/.docksal/commands/docksal-remote-default.yml ~/.docksal/commands/docksal-remote-default-nodb.yml
+rm -rf ~/.docksal/commands/docksal-remote-web-xip.yml

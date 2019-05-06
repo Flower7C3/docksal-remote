@@ -13,8 +13,8 @@
 ##      open|o|www - open public project URL with `open` command
 ##   proxy|x - run docker-compose commands on nginx proxy; see docker-compose
 ##   config|cfg|c [setup|variables|docksal|nginx|containers|networks|volumes] - show current config
-##      setup|set - save new config to `.env.docksal-remote` file
-##      variables|get - display config from `.env.docksal-remote` file
+##      setup|set (-f|--force) - save new config to `.docksal/docksal-remote.env` file
+##      variables|get - display config from `.docksal/docksal-remote.env` file
 ##      docksal|d - Docksal configuration
 ##      ngnix|www|w - Ngnix server configuration
 ##      containers|container|c - Docker containers configuration
@@ -49,6 +49,11 @@ print_text () {
 print_text_line () {
     print_text "$1" "$2"
     printf "\n"
+}
+join_by () {
+    local IFS="$1"
+    shift
+    echo "$*"
 }
 #-------------------------- Helper functions: OS --------------------------------
 if  [[ -f "/etc/os-release" ]]; then
@@ -130,20 +135,17 @@ config_setup () {
     print_text_line ${color_title} "# Setup configuration"
 
     local prompt_reset='x'
-    if [[ "$2" != "-f" && "$2" != "--force" ]]; then
-        if [[ -f ${ENV_FILE} ]]; then
-            while true; do
-                display_prompt "prompt_reset" "Found local configuration file. Do you want to override it? [y/n]" "n"
-                if [[ "$prompt_reset" == "y" ]]; then
-                    break;
-                elif [[ "$prompt_reset" == "n" ]]; then
-
-                    break;
-                else
-                    print_text_line ${color_red} "Invalid response!"
-                fi
-            done
-        fi
+    if [[ "$2" != "-f" && "$2" != "--force" && -f ${ENV_FILE} ]]; then
+        while true; do
+            display_prompt "prompt_reset" "Found local configuration file. Do you want to override it? [y/n]" "n"
+            if [[ "$prompt_reset" == "y" ]]; then
+                break
+            elif [[ "$prompt_reset" == "n" ]]; then
+                break
+            else
+                print_text_line ${color_red} "Invalid response!"
+            fi
+        done
     else
         prompt_reset='y'
     fi
@@ -152,7 +154,7 @@ config_setup () {
         while true; do
             display_prompt "DOCKER_HOST_IP" "Docker IP" "$_DOCKER_HOST_IP"
             if valid_ip "$DOCKER_HOST_IP"; then
-                break;
+                break
             else
                 print_text_line ${color_red} "Invalid IP address!"
             fi
@@ -162,7 +164,7 @@ config_setup () {
         while true; do
             display_prompt "DOCKER_HOST_PORT" "Docker port" "$DOCKER_HOST_PORT"
             if valid_port "$DOCKER_HOST_PORT"; then
-                break;
+                break
             else
                 print_text_line ${color_red} "Invalid port number!"
             fi
@@ -178,9 +180,21 @@ config_setup () {
         while true; do
             display_prompt "DEVELOPER_MACHINE_HOSTNAME" "Local developer machine IP" "$_DEVELOPER_MACHINE_HOSTNAME"
             if valid_ip "$DEVELOPER_MACHINE_HOSTNAME"; then
-                break;
+                break
             else
                 print_text_line ${color_red} "Invalid IP address!"
+            fi
+        done
+
+        DOCKSAL_STACK="default"
+        DOCKSAL_STACKS_STR=$(join_by , "${!_DOCKSAL_STACKS[@]}")
+        while true; do
+            display_prompt "DOCKSAL_STACK" "Docksal stack [${DOCKSAL_STACKS_STR}]" "$DOCKSAL_STACK"
+            if [[ -z "${_DOCKSAL_STACKS[$DOCKSAL_STACK]}" ]]; then
+                print_text_line ${color_red} "Invalid stack value!"
+            else
+                DOCKSAL_ENVIRONMENT=${_DOCKSAL_STACKS[$DOCKSAL_STACK]}
+                break
             fi
         done
 
@@ -190,9 +204,9 @@ config_setup () {
         while true; do
             display_prompt "prompt_save" "Save settings? [y/n]" "y"
             if [[ "$prompt_save" == "y" ]]; then
-                break;
+                break
             elif [[ "$prompt_save" == "n" ]]; then
-                break;
+                break
             else
                 print_text_line ${color_red} "Invalid response!"
             fi
@@ -200,7 +214,7 @@ config_setup () {
 
         rm -rf ${ENV_FILE}
         echo '# DOCKSAL OVERRIDE' >> ${ENV_FILE}
-        echo 'DOCKSAL_ENVIRONMENT='${_DOCKSAL_ENVIRONMENT} >> ${ENV_FILE}
+        echo 'DOCKSAL_ENVIRONMENT='${DOCKSAL_ENVIRONMENT} >> ${ENV_FILE}
         echo 'DOCKSAL_VHOST_PROXY_PORT_HTTP='${_DOCKSAL_VHOST_PROXY_PORT_HTTP} >> ${ENV_FILE}
         echo 'DOCKSAL_VHOST_PROXY_PORT_HTTPS='${_DOCKSAL_VHOST_PROXY_PORT_HTTPS} >> ${ENV_FILE}
         echo 'DOCKSAL_HOST=tcp://'${DOCKER_HOST_IP}':'${DOCKER_HOST_PORT} >> ${ENV_FILE}
@@ -215,11 +229,17 @@ config_setup () {
     config_dump_info
 }
 config_check () {
-    errors=()
+    local errors=()
     if [[ "$DOCKSAL_HOST" == "" ]]; then
         errors+=('Docksal host address ($DOCKSAL_HOST)')
     fi
-    if [[ "$DOCKSAL_ENVIRONMENT" != "$_DOCKSAL_ENVIRONMENT" ]]; then
+    local stack_found="n"
+    for docksal_env in "${_DOCKSAL_STACKS[@]}"; do
+        if [[ "$DOCKSAL_ENVIRONMENT" == "$docksal_env" ]]; then
+            stack_found="y"
+        fi
+    done
+    if [[ "$stack_found" == "n" ]]; then
         errors+=('Docksal environment ($DOCKSAL_ENVIRONMENT)')
     fi
     if [[ "$DOCKSAL_VHOST_PROXY_PORT_HTTP" != "$_DOCKSAL_VHOST_PROXY_PORT_HTTP" ]]; then
@@ -227,6 +247,9 @@ config_check () {
     fi
     if [[ "$DOCKSAL_VHOST_PROXY_PORT_HTTPS" != "$_DOCKSAL_VHOST_PROXY_PORT_HTTPS" ]]; then
         errors+=('Docksal vhost proxy HTTPS port ($DOCKSAL_VHOST_PROXY_PORT_HTTPS)')
+    fi
+    if [[ -z "$DEVELOPER_MACHINE_HOSTNAME" ]]; then
+        errors+=('Developer machine hostname ($DEVELOPER_MACHINE_HOSTNAME)')
     fi
     if [[ "${#errors[@]}" != "0" ]]; then
         print_text_line ${color_title} "# Validate configuration"
@@ -422,13 +445,15 @@ _docksal_env_reset () {
 
 
 #-------------------------- Settings: defaults --------------------------------
-_DOCKSAL_ENVIRONMENT="remote-web-xip"
+declare -A _DOCKSAL_STACKS
+_DOCKSAL_STACKS[default]='remote-default'
+_DOCKSAL_STACKS[nodb]='remote-default-nodb'
 _DOCKSAL_VHOST_PROXY_PORT_HTTP=8080
 _DOCKSAL_VHOST_PROXY_PORT_HTTPS=8443
-ENV_FILE="${PROJECT_ROOT}/.env.docksal-remote"
+ENV_FILE="${PROJECT_ROOT}/.docksal/docksal-remote.env"
 SCRIPT_ROOT=$(cd `dirname $0` && pwd)
-PROXY_APP_NAME="proxyapp"
-PROXY_APP_CONFIG="docker-nginx-proxy.yml"
+PROXY_APP_NAME='proxyapp'
+PROXY_APP_CONFIG='docker-nginx-proxy.yml'
 PROJECT_ROOT_ESCAPED=$(echo "$PROJECT_ROOT" | sed 's/\//\\\//g')
 #-------------------------- Execution --------------------------------
 case $1 in
@@ -447,10 +472,10 @@ case $1 in
                     while true; do
                         display_prompt "prompt_reset" "Do you really want to remove ALL PROJECT containers, volumes and network? [y/n]"
                         if [[ "$prompt_reset" == "y" ]]; then
-                            break;
+                            break
                         elif [[ "$prompt_reset" == "n" ]]; then
                             exit
-                            break;
+                            break
                         else
                             print_text_line ${color_red} "Invalid response!"
                         fi
@@ -463,10 +488,10 @@ case $1 in
                     while true; do
                         display_prompt "prompt_reset" "Do you really want to recreate ALL PROJECT containers, volumes and network? [y/n]"
                         if [[ "$prompt_reset" == "y" ]]; then
-                            break;
+                            break
                         elif [[ "$prompt_reset" == "n" ]]; then
                             exit
-                            break;
+                            break
                         else
                             print_text_line ${color_red} "Invalid response!"
                         fi
