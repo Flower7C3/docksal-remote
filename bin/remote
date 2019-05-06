@@ -495,14 +495,14 @@ case $1 in
             setup|set)
                 config_setup
             ;;
+            variables|get)
+                config_dump
+            ;;
             *)
                 config_check
                 echo '$1=['$1']'
                 exit
                 case $1 in
-                    variables|get)
-                        config_dump
-                    ;;
                     docksal|d)
                         print_text_line ${color_title} "# Docksal"
                         fin config

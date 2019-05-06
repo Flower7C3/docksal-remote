@@ -2,7 +2,9 @@
 
 ## Installation
 
-Install on local computer [Docksal](https://docksal.io/installation) and *fin remote* command:
+Install on local computer:
+1. [Docksal](https://docksal.io/installation)
+2. *fin remote* command:
 
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/bin/install)
