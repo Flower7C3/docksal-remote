@@ -127,38 +127,30 @@ set_variable () {
 
 #-------------------------- Settings: init & view --------------------------------
 config_setup () {
+    print_text_line ${color_title} "# Setup configuration"
 
-    local prompt_load='n'
-    if [[ -f ${ENV_FILE} ]]; then
-        while true; do
-            display_prompt "prompt_load" "Found local configuration file. Do you want to load it? [y/n]" "y"
-            if [[ "$prompt_load" == "y" ]]; then
-                break;
-            elif [[ "$prompt_load" == "n" ]]; then
-                break;
-            else
-                print_text_line ${color_red} "Invalid response!"
-            fi
-        done
+    local prompt_reset='x'
+    if [[ "$2" != "-f" && "$2" != "--force" ]]; then
+        if [[ -f ${ENV_FILE} ]]; then
+            while true; do
+                display_prompt "prompt_reset" "Found local configuration file. Do you want to override it? [y/n]" "n"
+                if [[ "$prompt_reset" == "y" ]]; then
+                    break;
+                elif [[ "$prompt_reset" == "n" ]]; then
+
+                    break;
+                else
+                    print_text_line ${color_red} "Invalid response!"
+                fi
+            done
+        fi
+    else
+        prompt_reset='y'
     fi
-
-    if [[ "$prompt_load" == "n" ]]; then
-
+    if [[ "$prompt_reset" == "y" ]]; then
+        _DOCKER_HOST_IP=${DOCKER_HOST_IP}
         while true; do
-            display_prompt "prompt_reset" "Do you want to setup new configuration? [y/n]"
-            if [[ "$prompt_reset" == "y" ]]; then
-                break;
-            elif [[ "$prompt_reset" == "n" ]]; then
-                exit
-                break;
-            else
-                print_text_line ${color_red} "Invalid response!"
-            fi
-        done
-
-        print_text_line ${color_title} "# Setup configuration"
-        while true; do
-            display_prompt "DOCKER_HOST_IP" "Docker IP"
+            display_prompt "DOCKER_HOST_IP" "Docker IP" "$_DOCKER_HOST_IP"
             if valid_ip "$DOCKER_HOST_IP"; then
                 break;
             else
@@ -166,8 +158,9 @@ config_setup () {
             fi
         done
 
+        _DOCKER_HOST_PORT=${DOCKER_HOST_PORT:-2375}
         while true; do
-            display_prompt "DOCKER_HOST_PORT" "Docker port" "2375"
+            display_prompt "DOCKER_HOST_PORT" "Docker port" "$DOCKER_HOST_PORT"
             if valid_port "$DOCKER_HOST_PORT"; then
                 break;
             else
@@ -175,13 +168,12 @@ config_setup () {
             fi
         done
 
-        _DEVELOPER_MACHINE_HOSTNAME=$DEVELOPER_MACHINE_HOSTNAME
-        if [[ -z "$DEVELOPER_MACHINE_HOSTNAME" ]]; then
-            if is_mac; then
-                _DEVELOPER_MACHINE_HOSTNAME=$(ifconfig en0 | grep "inet " | grep -Fv 127.0.0.1 | awk '{print $2}')
-            elif is_linux; then
-                _DEVELOPER_MACHINE_HOSTNAME=$(hostname -i)
-            fi
+        if is_mac; then
+            _DEVELOPER_MACHINE_HOSTNAME=$(ifconfig en0 | grep "inet " | grep -Fv 127.0.0.1 | awk '{print $2}')
+        elif is_linux; then
+            _DEVELOPER_MACHINE_HOSTNAME=$(hostname -i)
+        else
+            _DEVELOPER_MACHINE_HOSTNAME=$DEVELOPER_MACHINE_HOSTNAME
         fi
         while true; do
             display_prompt "DEVELOPER_MACHINE_HOSTNAME" "Local developer machine IP" "$_DEVELOPER_MACHINE_HOSTNAME"
@@ -193,7 +185,18 @@ config_setup () {
         done
 
         local _REMOTE_VIRTUAL_HOST="${VIRTUAL_HOST}.${DOCKER_HOST_IP}.xip.io"
-        local _REMOTE_URL_HTTP="http://${_REMOTE_VIRTUAL_HOST}"
+        display_prompt "REMOTE_VIRTUAL_HOST" "Remote virtual host" "$_REMOTE_VIRTUAL_HOST"
+
+        while true; do
+            display_prompt "prompt_save" "Save settings? [y/n]" "y"
+            if [[ "$prompt_save" == "y" ]]; then
+                break;
+            elif [[ "$prompt_save" == "n" ]]; then
+                break;
+            else
+                print_text_line ${color_red} "Invalid response!"
+            fi
+        done
 
         rm -rf ${ENV_FILE}
         echo '# DOCKSAL OVERRIDE' >> ${ENV_FILE}
@@ -205,15 +208,11 @@ config_setup () {
         echo 'DOCKER_HOST_IP='${DOCKER_HOST_IP} >> ${ENV_FILE}
         echo 'DOCKER_HOST_PORT='${DOCKER_HOST_PORT} >> ${ENV_FILE}
         echo '# REMOTE CONFIG' >> ${ENV_FILE}
-        echo 'REMOTE_VIRTUAL_HOST='${_REMOTE_VIRTUAL_HOST} >> ${ENV_FILE}
-        echo 'REMOTE_URL_HTTP='${_REMOTE_URL_HTTP} >> ${ENV_FILE}
+        echo 'REMOTE_VIRTUAL_HOST='${REMOTE_VIRTUAL_HOST} >> ${ENV_FILE}
+        echo 'REMOTE_URL_HTTP=http://'${REMOTE_VIRTUAL_HOST} >> ${ENV_FILE}
         echo 'DEVELOPER_MACHINE_HOSTNAME='${DEVELOPER_MACHINE_HOSTNAME} >> ${ENV_FILE}
-
     fi
-
-    print_text ${color_yellow} 'Please load settings by typing '
-    print_text ${color_console} 'eval $(fin remote config get)'
-    print_text_line ${color_yellow} ' command!'
+    config_dump_info
 }
 config_check () {
     errors=()
@@ -238,6 +237,11 @@ config_check () {
         config_setup
         exit $exit_code
     fi
+}
+config_dump_info () {
+    print_text ${color_yellow} 'Please load settings by typing '
+    print_text ${color_console} 'eval $(fin remote config get)'
+    print_text_line ${color_yellow} ' command!'
 }
 config_dump () {
     grep -v '^#' ${ENV_FILE} | sed 's/^/export /'
@@ -493,15 +497,13 @@ case $1 in
         shift
         case $1 in
             setup|set)
-                config_setup
+                config_setup "$@"
             ;;
             variables|get)
                 config_dump
             ;;
             *)
                 config_check
-                echo '$1=['$1']'
-                exit
                 case $1 in
                     docksal|d)
                         print_text_line ${color_title} "# Docksal"
