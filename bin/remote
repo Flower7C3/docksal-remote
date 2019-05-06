@@ -4,14 +4,26 @@
 ## Usage: fin remote <command> (options)
 ## Commands:
 ##   project|p [up|start|stop|down|restart|reset|open]
+##      up - warmup Docksal project: setup NFS connection, configure env files and run *fin up*
+##      down (-f|--force) - remove Docksal project: run `fin remove -f`, remove env files and cleanup NFS connection
+##      reset (-f|--force) - reset Docksal project: run `fin remote project down`, then `fin remote project up` on local
+##      start|s - start Docksal project: setup NFS connection, configure env files and run `fin start`
+##      stop|e - stop Docksal project: run `fin stop`, remote env files and cleanup NFS connection
+##      restart|r - restart Docksal project: run `fin remote project stop`, then `fin remote project start` on local
+##      open|o|www - open public project URL with `open` command
 ##   proxy|x - run docker-compose commands on nginx proxy; see docker-compose
-##   config|cfg|c - show current config
-##   config-setup - save new config to .env.docksal-remote file
-##   config-dump - display config from .env.docksal-remote file
+##   config|cfg|c [setup|variables|docksal|nginx|containers|networks|volumes] - show current config
+##      setup|set - save new config to `.env.docksal-remote` file
+##      variables|get - display config from `.env.docksal-remote` file
+##      docksal|d - Docksal configuration
+##      ngnix|www|w - Ngnix server configuration
+##      containers|container|c - Docker containers configuration
+##      networks|network|net|n - Docker networks configuration
+##      volumes|volume|vol|v - Docker volumes server configuration
 ## Shortcuts:
 ##   up - warmup Docksal project; alias to `fin remote project up`
-##   down - remove Docksal project; alias to `fin remote project down`
-##   reset - reset Docksal project; alias to `fin remote project reset`
+##   down (-f|--force) - remove Docksal project; alias to `fin remote project down`
+##   reset (-f|--force) - reset Docksal project; alias to `fin remote project reset`
 ##   start|s - start Docksal project; alias to `fin remote project start`
 ##   stop|e - stop Docksal project; alias to `fin remote project stop`
 ##   restart|r - restart Docksal project; alias to `fin remote project restart`
@@ -37,12 +49,6 @@ print_text () {
 print_text_line () {
     print_text "$1" "$2"
     printf "\n"
-}
-display-error (){
-    local message=$1
-    local exit_code=${2:-1}
-    print_text_line ${color_red} "${message}" >&2
-    errors=1
 }
 #-------------------------- Helper functions: OS --------------------------------
 if  [[ -f "/etc/os-release" ]]; then
@@ -121,12 +127,11 @@ set_variable () {
 
 #-------------------------- Settings: init & view --------------------------------
 config_setup () {
-    print_text_line ${color_title} "# Setup configuration"
 
     local prompt_load='n'
     if [[ -f ${ENV_FILE} ]]; then
         while true; do
-            display_prompt "prompt_load" "Local configuration file exists. Do you want to load it? [y/n]" "y"
+            display_prompt "prompt_load" "Found local configuration file. Do you want to load it? [y/n]" "y"
             if [[ "$prompt_load" == "y" ]]; then
                 break;
             elif [[ "$prompt_load" == "n" ]]; then
@@ -140,7 +145,7 @@ config_setup () {
     if [[ "$prompt_load" == "n" ]]; then
 
         while true; do
-            display_prompt "prompt_reset" "Do you want to remove current configuration and setup new one? [y/n]"
+            display_prompt "prompt_reset" "Do you want to setup new configuration? [y/n]"
             if [[ "$prompt_reset" == "y" ]]; then
                 break;
             elif [[ "$prompt_reset" == "n" ]]; then
@@ -151,6 +156,7 @@ config_setup () {
             fi
         done
 
+        print_text_line ${color_title} "# Setup configuration"
         while true; do
             display_prompt "DOCKER_HOST_IP" "Docker IP"
             if valid_ip "$DOCKER_HOST_IP"; then
@@ -206,56 +212,35 @@ config_setup () {
     fi
 
     print_text ${color_yellow} 'Please load settings by typing '
-    print_text ${color_console} 'eval $(fin remote config-dump)'
+    print_text ${color_console} 'eval $(fin remote config get)'
     print_text_line ${color_yellow} ' command!'
 }
 config_check () {
-    errors=0
+    errors=()
     if [[ "$DOCKSAL_HOST" == "" ]]; then
-        display-error 'Invalid Docksal host address.'
+        errors+=('Docksal host address ($DOCKSAL_HOST)')
     fi
     if [[ "$DOCKSAL_ENVIRONMENT" != "$_DOCKSAL_ENVIRONMENT" ]]; then
-        display-error 'Invalid Docksal environment.'
+        errors+=('Docksal environment ($DOCKSAL_ENVIRONMENT)')
     fi
     if [[ "$DOCKSAL_VHOST_PROXY_PORT_HTTP" != "$_DOCKSAL_VHOST_PROXY_PORT_HTTP" ]]; then
-        display-error 'Invalid Docksal-vhost-proxy HTTP port.'
+        errors+=('Docksal vhost proxy HTTP port ($DOCKSAL_VHOST_PROXY_PORT_HTTP)')
     fi
     if [[ "$DOCKSAL_VHOST_PROXY_PORT_HTTPS" != "$_DOCKSAL_VHOST_PROXY_PORT_HTTPS" ]]; then
-        display-error 'Invalid Docksal-vhost-proxy HTTPS port.'
+        errors+=('Docksal vhost proxy HTTPS port ($DOCKSAL_VHOST_PROXY_PORT_HTTPS)')
     fi
-    if [[ "$errors" != "0" ]]; then
+    if [[ "${#errors[@]}" != "0" ]]; then
+        print_text_line ${color_title} "# Validate configuration"
+        print_text_line ${color_red} "Following configuration variables are not present in current shell:"
+        for error in "${errors[@]}"; do
+            print_text_line ${color_red} "- ${error}"
+        done
         config_setup
         exit $exit_code
     fi
 }
 config_dump () {
     grep -v '^#' ${ENV_FILE} | sed 's/^/export /'
-}
-config_view () {
-    case $1 in
-        www)
-            print_text_line ${color_title} "# NGNIX"
-            printf "${color_green}"
-            docker exec -t ${PROXY_APP_NAME}_nginx_1 tail -n +46 /etc/nginx/conf.d/default.conf
-            printf "${NC}"
-        ;;
-        docker)
-            print_text_line ${color_title} "# Docker Containers"
-            docker inspect $(docker ps -a | grep ${COMPOSE_PROJECT_NAME_SAFE} | awk '{print $1}')
-            print_text_line ${color_title} "# Docker Networks"
-            docker network inspect $(docker network ls | grep ${COMPOSE_PROJECT_NAME_SAFE} | awk '{print $1}')
-            print_text_line ${color_title} "# Docker Volumes"
-            docker volume inspect $(docker volume ls | grep ${COMPOSE_PROJECT_NAME_SAFE} | awk '{print $2}')
-        ;;
-        *)
-            print_text_line ${color_title} "# View configuration"
-            print_text_line ${color_green} "DOCKSAL_ENVIRONMENT: ${color_green_bold}${DOCKSAL_ENVIRONMENT}"
-            print_text_line ${color_green} "DOCKSAL_HOST: ${color_green_bold}${DOCKSAL_HOST}"
-            print_text_line ${color_green} "DOCKER_HOST: ${color_green_bold}${DOCKER_HOST}"
-            print_text_line ${color_green} "PROJECT_ROOT: ${color_green_bold}${PROJECT_ROOT}"
-            print_text_line ${color_green} "REMOTE_VIRTUAL_HOST: ${color_green_bold}${REMOTE_URL_HTTP}"
-        ;;
-    esac
 }
 #-------------------------- END: Settings --------------------------------
 
@@ -269,7 +254,7 @@ nfs_up () {
             (\
                 print_text_line ${color_title} "# Prepare exports file" \
                 && \
-                print_text_line ${color_green} "You may be asked for root password to modify '/etc/exports' file" \
+                print_text_line ${color_green} "You may be asked for local root password to modify local '/etc/exports' file" \
                 && \
                 echo "${PROJECT_ROOT} ${DOCKER_HOST_IP}" | sudo tee -a /etc/exports \
                 && \
@@ -283,7 +268,7 @@ nfs_down () {
         (\
             print_text_line ${color_title} "# Cleanup local NFS exports" \
             && \
-            print_text_line ${color_green} "You may be asked for root password to modify '/etc/exports' file" \
+            print_text_line ${color_green} "You may be asked for local root password to modify local '/etc/exports' file" \
             && \
             sed '/^'$PROJECT_ROOT_ESCAPED'/d' /etc/exports | sudo tee /etc/exports >/dev/null \
             && \
@@ -443,26 +428,8 @@ PROXY_APP_CONFIG="docker-nginx-proxy.yml"
 PROJECT_ROOT_ESCAPED=$(echo "$PROJECT_ROOT" | sed 's/\//\\\//g')
 #-------------------------- Execution --------------------------------
 case $1 in
-    up)
-        fin remote project up
-    ;;
-    down)
-        fin remote project down
-    ;;
-    reset)
-        fin remote project reset
-    ;;
-    start|s)
-        fin remote project start
-    ;;
-    stop|e)
-        fin remote project stop
-    ;;
-    restart|r)
-        fin remote project restart
-    ;;
-    open|o|www)
-        fin remote project open
+    up|down|reset|start|s|stop|e|restart|r|open|o|www)
+        fin remote project $@
     ;;
     project|p)
         shift
@@ -472,9 +439,35 @@ case $1 in
                 docksal_project_up
             ;;
             down)
+                if [[ "$2" != "-f" && "$2" != "--force" ]]; then
+                    while true; do
+                        display_prompt "prompt_reset" "Do you really want to remove ALL PROJECT containers, volumes and network? [y/n]"
+                        if [[ "$prompt_reset" == "y" ]]; then
+                            break;
+                        elif [[ "$prompt_reset" == "n" ]]; then
+                            exit
+                            break;
+                        else
+                            print_text_line ${color_red} "Invalid response!"
+                        fi
+                    done
+                fi
                 docksal_project_down
             ;;
             reset)
+                if [[ "$2" != "-f" && "$2" != "--force" ]]; then
+                    while true; do
+                        display_prompt "prompt_reset" "Do you really want to recreate ALL PROJECT containers, volumes and network? [y/n]"
+                        if [[ "$prompt_reset" == "y" ]]; then
+                            break;
+                        elif [[ "$prompt_reset" == "n" ]]; then
+                            exit
+                            break;
+                        else
+                            print_text_line ${color_red} "Invalid response!"
+                        fi
+                    done
+                fi
                 docksal_project_down && sleep 1 && docksal_project_up
             ;;
             start|s)
@@ -498,14 +491,51 @@ case $1 in
     ;;
     config|cfg|c)
         shift
-        config_check
-        config_view "$@"
-    ;;
-    config-setup|cfg-setup|cs)
-        config_setup
-    ;;
-    config-dump|cfg-dump|cd)
-        config_dump
+        case $1 in
+            setup|set)
+                config_setup
+            ;;
+            *)
+                config_check
+                echo '$1=['$1']'
+                exit
+                case $1 in
+                    variables|get)
+                        config_dump
+                    ;;
+                    docksal|d)
+                        print_text_line ${color_title} "# Docksal"
+                        fin config
+                    ;;
+                    nginx|www|w)
+                        print_text_line ${color_title} "# NGNIX configuration"
+                        printf "${color_green}"
+                        docker exec -t ${PROXY_APP_NAME}_nginx_1 tail -n +46 /etc/nginx/conf.d/default.conf
+                        printf "${NC}"
+                    ;;
+                    containers|container|c)
+                        print_text_line ${color_title} "# Docker containers"
+                        docker inspect $(docker ps -a | grep ${COMPOSE_PROJECT_NAME_SAFE} | awk '{print $1}')
+                    ;;
+                    networks|network|net|n)
+                        print_text_line ${color_title} "# Docker networks"
+                        docker network inspect $(docker network ls | grep ${COMPOSE_PROJECT_NAME_SAFE} | awk '{print $1}')
+                    ;;
+                    volumes|volume|vol|v)
+                        print_text_line ${color_title} "# Docker volumes"
+                        docker volume inspect $(docker volume ls | grep ${COMPOSE_PROJECT_NAME_SAFE} | awk '{print $2}')
+                    ;;
+                    *)
+                        fin remote config variables
+                        fin remote config docksal
+                        fin remote config nginx
+                        fin remote config containers
+                        fin remote config networks
+                        fin remote config volumes
+                    ;;
+                esac
+            ;;
+        esac
     ;;
 #    cleanall)
 #        print_text_line ${color_title} "# Stop Docker containers"
