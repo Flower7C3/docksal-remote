@@ -1,5 +1,8 @@
 # Docksal on remote
 
+Allow to run fin on remote server with custom remote domain.
+
+
 ## Installation
 
 Install on local computer:
@@ -42,6 +45,7 @@ Main commands in this script:
 * `fin remote config|cfg|c` - shows stack config
     * `fin remote config setup|set (-f|--force)` - save new config to *.env.docksal-remote* file
     * `fin remote config variables|get` - display config from *.env.docksal-remote* file
+    * `fin remote config check|k` - check if config is loaded to shell
     * `fin remote config docksal|d` - Docksal configuration
     * `fin remote config ngnix|www|w` - Ngnix server configuration
     * `fin remote config containers|container|c` - Docker containers configuration
