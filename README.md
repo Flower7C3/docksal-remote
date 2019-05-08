@@ -43,8 +43,8 @@ Main commands in this script:
     * `fin remote project open|o|www` - open public project URL with `open` command
 * `fin remote proxy|x` - run docker-compose commands on nginx proxy, all extra parameters are same like in `docker-compose` command
 * `fin remote config|cfg|c` - shows stack config
-    * `fin remote config setup|set (-f|--force)` - save new config to *.env.docksal-remote* file
-    * `fin remote config variables|get` - display config from *.env.docksal-remote* file
+    * `fin remote config setup|set|s (-f|--force)` - save new config to *.env.docksal-remote* file
+    * `fin remote config variables|get|g` - display config from *.env.docksal-remote* file
     * `fin remote config check|k` - check if config is loaded to shell
     * `fin remote config docksal|d` - Docksal configuration
     * `fin remote config ngnix|www|w` - Ngnix server configuration

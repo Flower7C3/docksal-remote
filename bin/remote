@@ -13,8 +13,8 @@
 ##      open|o|www - open public project URL with `open` command
 ##   proxy|x - run docker-compose commands on nginx proxy; see docker-compose
 ##   config|cfg|c [setup|variables|docksal|nginx|containers|networks|volumes] - show current config
-##      setup|set (-f|--force) - save new config to `.docksal/docksal-remote.env` file
-##      variables|get - display config from `.docksal/docksal-remote.env` file
+##      setup|set|s (-f|--force) - save new config to `.docksal/docksal-remote.env` file
+##      variables|get|g - display config from `.docksal/docksal-remote.env` file
 ##      check|k - check if config is loaded to shell
 ##      docksal|d - Docksal configuration
 ##      ngnix|www|w - Ngnix server configuration
@@ -215,6 +215,7 @@ config_setup () {
 
         rm -rf ${ENV_FILE}
         echo '# DOCKER' >> ${ENV_FILE}
+        echo 'DOCKER_HOST='${DOCKER_HOST_IP}':'${DOCKER_HOST_PORT} >> ${ENV_FILE}
         echo 'DOCKER_HOST_IP='${DOCKER_HOST_IP} >> ${ENV_FILE}
         echo 'DOCKER_HOST_PORT='${DOCKER_HOST_PORT} >> ${ENV_FILE}
         echo '# DOCKSAL OVERRIDE' >> ${ENV_FILE}
@@ -240,6 +241,7 @@ config_check_or_setup () {
             done
         fi
         config_setup
+        exit 11
     fi
 }
 config_check_info () {
@@ -262,8 +264,8 @@ _config_check () {
     if [[ -z "$DOCKER_HOST_PORT" ]]; then
         errors+=('Docker host port ($DOCKER_HOST_PORT)')
     fi
-    if [[ "$DOCKSAL_HOST" == "" ]]; then
-        errors+=('Docksal host address ($DOCKSAL_HOST)')
+    if [[ -z "$DOCKER_HOST" || "$DOCKER_HOST" != "${DOCKER_HOST_IP}:${DOCKER_HOST_PORT}" ]]; then
+        errors+=('Docker host address ($DOCKER_HOST)')
     fi
     local stack_found="n"
     for docksal_env in "${_DOCKSAL_STACKS[@]}"; do
@@ -554,10 +556,10 @@ case $1 in
     config|cfg|c)
         shift
         case $1 in
-            setup|set)
+            setup|set|s)
                 config_setup "$@"
             ;;
-            variables|get)
+            variables|get|g)
                 config_dump_show
             ;;
             check|k)
