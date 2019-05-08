@@ -132,6 +132,81 @@ set_variable () {
 
 
 #-------------------------- Settings: init & view --------------------------------
+system_check () {
+    for cmd in "${!_REQUIRED_PROGRAMS[@]}"; do
+        if ! hash "$cmd" 2>/dev/null; then
+            print_text_line ${color_red} "${_REQUIRED_PROGRAMS[$cmd]}"
+            exit 11
+        fi
+    done
+    if [[ -z "$PROJECT_ROOT" ]]; then
+        print_text_line ${color_red} "Script executed without 'fin' context. Please read instructions on https://github.com/Flower7C3/docksal-remote/blob/master/README.md"
+        exit 12
+    fi
+}
+config_check_or_setup () {
+    local errors=()
+    _config_check
+    if [[ "${#errors}" != "0" ]]; then
+        print_text_line ${color_title} "# Validate configuration"
+        if [[ "${#errors[@]}" != "0" ]]; then
+            print_text_line ${color_red} "Following configuration variables are not present in current shell:"
+            for error in "${errors[@]}"; do
+                print_text_line ${color_red} "- ${error}"
+            done
+        fi
+        config_setup
+        exit 0
+    fi
+}
+config_check_info () {
+    local errors=()
+    _config_check
+    print_text_line ${color_title} "# Validate configuration"
+    if [[ "${#errors[@]}" != "0" ]]; then
+        print_text_line ${color_red} "Following configuration variables are not present in current shell:"
+        for error in "${errors[@]}"; do
+            print_text_line ${color_red} "- ${error}"
+        done
+    else
+        print_text_line ${color_green} "Config ok"
+    fi
+}
+_config_check () {
+    if ! valid_ip "$DOCKER_HOST_IP"; then
+        errors+=('Docker host IP ($DOCKER_HOST_IP)')
+    fi
+    if [[ -z "$DOCKER_HOST_PORT" ]]; then
+        errors+=('Docker host port ($DOCKER_HOST_PORT)')
+    fi
+    if [[ -z "$DOCKER_HOST" || "$DOCKER_HOST" != "${DOCKER_HOST_IP}:${DOCKER_HOST_PORT}" ]]; then
+        errors+=('Docker host address ($DOCKER_HOST)')
+    fi
+    local stack_found="n"
+    for docksal_env in "${_DOCKSAL_STACKS[@]}"; do
+        if [[ "$DOCKSAL_ENVIRONMENT" == "$docksal_env" ]]; then
+            stack_found="y"
+        fi
+    done
+    if [[ "$stack_found" == "n" ]]; then
+        errors+=('Docksal environment ($DOCKSAL_ENVIRONMENT)')
+    fi
+    if [[ "$DOCKSAL_VHOST_PROXY_PORT_HTTP" != "$_DOCKSAL_VHOST_PROXY_PORT_HTTP" ]]; then
+        errors+=('Docksal vhost-proxy HTTP port ($DOCKSAL_VHOST_PROXY_PORT_HTTP)')
+    fi
+    if [[ "$DOCKSAL_VHOST_PROXY_PORT_HTTPS" != "$_DOCKSAL_VHOST_PROXY_PORT_HTTPS" ]]; then
+        errors+=('Docksal vhost-proxy HTTPS port ($DOCKSAL_VHOST_PROXY_PORT_HTTPS)')
+    fi
+    if [[ -z "$DOCKSAL_HOST" || "$DOCKSAL_HOST" != "tcp://${DOCKER_HOST_IP}:${DOCKER_HOST_PORT}" ]]; then
+        errors+=('Docksal host URL ($DOCKSAL_HOST)')
+    fi
+    if [[ -z "$REMOTE_VIRTUAL_HOST" ]]; then
+        errors+=('Remote virtual host ($REMOTE_VIRTUAL_HOST)')
+    fi
+    if [[ -z "$DEVELOPER_MACHINE_HOSTNAME" ]]; then
+        errors+=('Developer machine hostname ($DEVELOPER_MACHINE_HOSTNAME)')
+    fi
+}
 config_setup () {
     print_text_line ${color_title} "# Setup configuration"
 
@@ -225,72 +300,10 @@ config_setup () {
         echo 'DOCKSAL_HOST=tcp://'${DOCKER_HOST_IP}':'${DOCKER_HOST_PORT} >> ${ENV_FILE}
         echo '# REMOTE CONFIG' >> ${ENV_FILE}
         echo 'REMOTE_VIRTUAL_HOST='${REMOTE_VIRTUAL_HOST} >> ${ENV_FILE}
+        echo '# LOCAL CONFIG' >> ${ENV_FILE}
         echo 'DEVELOPER_MACHINE_HOSTNAME='${DEVELOPER_MACHINE_HOSTNAME} >> ${ENV_FILE}
     fi
     config_dump_howto
-}
-config_check_or_setup () {
-    local errors=()
-    _config_check
-    if [[ "${#errors}" != "0" ]]; then
-        print_text_line ${color_title} "# Validate configuration"
-        if [[ "${#errors[@]}" != "0" ]]; then
-            print_text_line ${color_red} "Following configuration variables are not present in current shell:"
-            for error in "${errors[@]}"; do
-                print_text_line ${color_red} "- ${error}"
-            done
-        fi
-        config_setup
-        exit 11
-    fi
-}
-config_check_info () {
-    local errors=()
-    _config_check
-    print_text_line ${color_title} "# Validate configuration"
-    if [[ "${#errors[@]}" != "0" ]]; then
-        print_text_line ${color_red} "Following configuration variables are not present in current shell:"
-        for error in "${errors[@]}"; do
-            print_text_line ${color_red} "- ${error}"
-        done
-    else
-        print_text_line ${color_green} "Config ok"
-    fi
-}
-_config_check () {
-    if ! valid_ip "$DOCKER_HOST_IP"; then
-        errors+=('Docker host IP ($DOCKER_HOST_IP)')
-    fi
-    if [[ -z "$DOCKER_HOST_PORT" ]]; then
-        errors+=('Docker host port ($DOCKER_HOST_PORT)')
-    fi
-    if [[ -z "$DOCKER_HOST" || "$DOCKER_HOST" != "${DOCKER_HOST_IP}:${DOCKER_HOST_PORT}" ]]; then
-        errors+=('Docker host address ($DOCKER_HOST)')
-    fi
-    local stack_found="n"
-    for docksal_env in "${_DOCKSAL_STACKS[@]}"; do
-        if [[ "$DOCKSAL_ENVIRONMENT" == "$docksal_env" ]]; then
-            stack_found="y"
-        fi
-    done
-    if [[ "$stack_found" == "n" ]]; then
-        errors+=('Docksal environment ($DOCKSAL_ENVIRONMENT)')
-    fi
-    if [[ "$DOCKSAL_VHOST_PROXY_PORT_HTTP" != "$_DOCKSAL_VHOST_PROXY_PORT_HTTP" ]]; then
-        errors+=('Docksal vhost-proxy HTTP port ($DOCKSAL_VHOST_PROXY_PORT_HTTP)')
-    fi
-    if [[ "$DOCKSAL_VHOST_PROXY_PORT_HTTPS" != "$_DOCKSAL_VHOST_PROXY_PORT_HTTPS" ]]; then
-        errors+=('Docksal vhost-proxy HTTPS port ($DOCKSAL_VHOST_PROXY_PORT_HTTPS)')
-    fi
-    if [[ -z "$DOCKSAL_HOST" || "$DOCKSAL_HOST" != "tcp://${DOCKER_HOST_IP}:${DOCKER_HOST_PORT}" ]]; then
-        errors+=('Docksal host URL ($DOCKSAL_HOST)')
-    fi
-    if [[ -z "$REMOTE_VIRTUAL_HOST" ]]; then
-        errors+=('Remote virtual host ($REMOTE_VIRTUAL_HOST)')
-    fi
-    if [[ -z "$DEVELOPER_MACHINE_HOSTNAME" ]]; then
-        errors+=('Developer machine hostname ($DEVELOPER_MACHINE_HOSTNAME)')
-    fi
 }
 config_dump_howto () {
     print_text ${color_yellow} 'Please load settings by typing '
@@ -373,7 +386,6 @@ docksal_project_start () {
         && \
         print_text_line ${color_title} "# Project public URL: ${REMOTE_URL_HTTP}" \
     ) || print_text_line ${color_red} "Project not started!"
-#    fin start
 }
 docksal_project_up () {
     (\
@@ -457,9 +469,9 @@ docksal_to_proxy_network_disconnect () {
 }
 #-------------------------- Functions: DOCKSAL ENV --------------------------------
 _docksal_env_setup () {
-    if [[ ! $(fin remote proxy ps | grep " Up ") ]]; then
+    if [[ ! $($0 proxy ps | grep " Up ") ]]; then
         print_text_line ${color_title} "# Start ${PROXY_APP_NAME}"
-        fin remote proxy up -d
+        $0 proxy up -d
     fi
     if [[ -f ${PROJECT_ROOT}/.docksal/docksal-${DOCKSAL_ENVIRONMENT}.yml ]]; then
         _docksal_env_reset
@@ -476,6 +488,11 @@ _docksal_env_reset () {
 
 
 #-------------------------- Settings: defaults --------------------------------
+declare -A _REQUIRED_PROGRAMS
+_REQUIRED_PROGRAMS[fin]="Please install Docksal from https://docksal.io/installation"
+_REQUIRED_PROGRAMS[docker]="Please install Docker"
+_REQUIRED_PROGRAMS[docker-compose]="Please install Docker"
+system_check
 declare -A _DOCKSAL_STACKS
 _DOCKSAL_STACKS[default]='remote-default'
 _DOCKSAL_STACKS[nodb]='remote-default-nodb'
@@ -490,7 +507,7 @@ REMOTE_URL_HTTP=http://${REMOTE_VIRTUAL_HOST}
 #-------------------------- Execution --------------------------------
 case $1 in
     up|down|reset|start|s|stop|e|restart|r|open|o|www)
-        fin remote project $@
+        $0 project $@
     ;;
     project|p)
         shift
@@ -506,7 +523,7 @@ case $1 in
                         if [[ "$prompt_reset" == "y" ]]; then
                             break
                         elif [[ "$prompt_reset" == "n" ]]; then
-                            exit 88
+                            exit 0
                             break
                         else
                             print_text_line ${color_red} "Invalid response!"
@@ -522,7 +539,7 @@ case $1 in
                         if [[ "$prompt_reset" == "y" ]]; then
                             break
                         elif [[ "$prompt_reset" == "n" ]]; then
-                            exit 88
+                            exit 0
                             break
                         else
                             print_text_line ${color_red} "Invalid response!"
@@ -591,12 +608,12 @@ case $1 in
                         docker volume inspect $(docker volume ls | grep ${COMPOSE_PROJECT_NAME_SAFE} | awk '{print $2}')
                     ;;
                     *)
-                        fin remote config variables
-                        fin remote config docksal
-                        fin remote config nginx
-                        fin remote config containers
-                        fin remote config networks
-                        fin remote config volumes
+                        $0 config variables
+                        $0 config docksal
+                        $0 config nginx
+                        $0 config containers
+                        $0 config networks
+                        $0 config volumes
                     ;;
                 esac
             ;;
