@@ -40,7 +40,7 @@ Main commands in this script:
     * `fin remote project start|s` - start Docksal project: setup NFS connection, configure env files and run *fin start*
     * `fin remote project stop|e` - stop Docksal project: run *fin stop*, remote env files and cleanup NFS connection
     * `fin remote project restart|r` - restart Docksal project: run `fin remote project stop`, then `fin remote project start` on local 
-    * `fin remote project open|o|www` - open public project URL with `open` command
+    * `fin remote project open|o|www (path)` - open public project URL with `open` command
 * `fin remote proxy|x` - run docker-compose commands on nginx proxy, all extra parameters are same like in `docker-compose` command
 * `fin remote config|cfg|c` - shows stack config
     * `fin remote config setup|set|s (-f|--force)` - save new config to *.env.docksal-remote* file
@@ -55,9 +55,9 @@ Main commands in this script:
 
 Short commands in this script:
 * `fin remote up` - alias to `fin remote project up`
-* `fin remote down` - alias to `fin remote project down`
+* `fin remote down (-f|--force)` - alias to `fin remote project down`
 * `fin remote reset` - alias to `fin remote project reset`
 * `fin remote start`, `fin remote s` - alias to `fin remote project start`
 * `fin remote stop`, `fin remote e` - alias to `fin remote project stop`
 * `fin remote restart` - alias to `fin remote project restart`
-* `fin remote open|www|o` - alias to `fin remote project open`
+* `fin remote open|www|o (path)` - alias to `fin remote project open`

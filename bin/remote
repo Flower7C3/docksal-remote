@@ -10,7 +10,7 @@
 ##      start|s - start Docksal project: setup NFS connection, configure env files and run `fin start`
 ##      stop|e - stop Docksal project: run `fin stop`, remote env files and cleanup NFS connection
 ##      restart|r - restart Docksal project: run `fin remote project stop`, then `fin remote project start` on local
-##      open|o|www - open public project URL with `open` command
+##      open|o|www (path) - open public project URL with `open` command
 ##   proxy|x - run docker-compose commands on nginx proxy; see docker-compose
 ##   config|cfg|c [setup|variables|docksal|nginx|containers|networks|volumes] - show current config
 ##      setup|set|s (-f|--force) - save new config to `.docksal/docksal-remote.env` file
@@ -28,7 +28,7 @@
 ##   start|s - start Docksal project; alias to `fin remote project start`
 ##   stop|e - stop Docksal project; alias to `fin remote project stop`
 ##   restart|r - restart Docksal project; alias to `fin remote project restart`
-##   open|o|www - open public URL; alias to `fin remote project open`
+##   open|o|www (path) - open public URL; alias to `fin remote project open`
 
 
 #-------------------------- Helper functions: Console colors --------------------------------
@@ -211,7 +211,7 @@ config_setup () {
     print_text_line ${color_title} "# Setup configuration"
 
     local prompt_reset='x'
-    if [[ "$2" != "-f" && "$2" != "--force" && -f ${ENV_FILE} ]]; then
+    if [[ "$1" != "-f" && "$1" != "--force" && -f ${ENV_FILE} ]]; then
         while true; do
             display_prompt "prompt_reset" "Found local configuration file. Do you want to override it? [y/n]" "n"
             if [[ "$prompt_reset" == "y" ]]; then
@@ -447,8 +447,9 @@ docksal_project_down () {
     )
 }
 docksal_project_open () {
-    print_text_line ${color_title} "# Open ${REMOTE_URL_HTTP}"
-    open ${REMOTE_URL_HTTP}
+    local url=${REMOTE_URL_HTTP}${1}
+    print_text_line ${color_title} "# Open ${url}"
+    open ${url}
 }
 #-------------------------- Functions: DOCKSAL NETWORK --------------------------------
 docksal_to_proxy_network_connect () {
@@ -517,7 +518,8 @@ case $1 in
                 docksal_project_up
             ;;
             down)
-                if [[ "$2" != "-f" && "$2" != "--force" ]]; then
+                shift
+                if [[ "$1" != "-f" && "$1" != "--force" ]]; then
                     while true; do
                         display_prompt "prompt_reset" "Do you really want to remove ALL PROJECT containers, volumes and network? [y/n]"
                         if [[ "$prompt_reset" == "y" ]]; then
@@ -533,7 +535,8 @@ case $1 in
                 docksal_project_down
             ;;
             reset)
-                if [[ "$2" != "-f" && "$2" != "--force" ]]; then
+                shift
+                if [[ "$1" != "-f" && "$1" != "--force" ]]; then
                     while true; do
                         display_prompt "prompt_reset" "Do you really want to recreate ALL PROJECT containers, volumes and network? [y/n]"
                         if [[ "$prompt_reset" == "y" ]]; then
@@ -558,7 +561,8 @@ case $1 in
                 docksal_project_stop && sleep 1 && docksal_project_start
             ;;
             open|o|www)
-                docksal_project_open
+                shift
+                docksal_project_open "$@"
             ;;
             *)
                 fin help remote project
@@ -574,6 +578,7 @@ case $1 in
         shift
         case $1 in
             setup|set|s)
+                shift
                 config_setup "$@"
             ;;
             variables|get|g)
