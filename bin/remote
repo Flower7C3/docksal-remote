@@ -226,7 +226,13 @@ config_setup () {
         prompt_reset='y'
     fi
     if [[ "$prompt_reset" == "y" ]]; then
-        _DOCKER_HOST_IP=${DOCKER_HOST_IP}
+        if [[ -n "$DOCKER_HOST_IP" ]]; then
+            _DOCKER_HOST_IP=${DOCKER_HOST_IP}
+        elif [[ -n "$REMOTE_DOCKER_HOST_IP" ]]; then
+            _DOCKER_HOST_IP=${REMOTE_DOCKER_HOST_IP}
+        else
+            _DOCKER_HOST_IP=''
+        fi
         while true; do
             display_prompt "DOCKER_HOST_IP" "Docker host IP" "$_DOCKER_HOST_IP"
             if valid_ip "$DOCKER_HOST_IP"; then
@@ -236,9 +242,15 @@ config_setup () {
             fi
         done
 
-        _DOCKER_HOST_PORT=${DOCKER_HOST_PORT:-2375}
+        if [[ -n "$DOCKER_HOST_PORT" ]]; then
+            _DOCKER_HOST_PORT=${DOCKER_HOST_PORT}
+        elif [[ -n "$REMOTE_DOCKER_HOST_PORT" ]]; then
+            _DOCKER_HOST_PORT=${REMOTE_DOCKER_HOST_PORT}
+        else
+            _DOCKER_HOST_PORT=2375
+        fi
         while true; do
-            display_prompt "DOCKER_HOST_PORT" "Docker host port" "$DOCKER_HOST_PORT"
+            display_prompt "DOCKER_HOST_PORT" "Docker host port" "$_DOCKER_HOST_PORT"
             if valid_port "$DOCKER_HOST_PORT"; then
                 break
             else

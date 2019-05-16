@@ -23,14 +23,16 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Flower7C3/docksal-remote/mas
 First create program configuration with `fin remote config set` command. 
 Next load configuration to shell with `eval $(fin remote config get)` command.
 
-All configuration will be saved in `.env.docksal-remote` file.
+All configuration will be saved in `.docksal/docksal-remote.env` file.
+
+> You can define `REMOTE_DOCKER_HOST_IP` and `REMOTE_DOCKER_HOST_PORT` global variables to setup autocomplete in configuration program.  
 
 
 ## Usage
 
 In project directory where Docksal configuration exist just type `fin remote` command.
 
-> Do NOT use *fin project*, *fin start*, *fin stop*, etc. commands!
+> Do NOT use *fin project*, *fin start*, *fin stop*, etc. commands! It may start Docker with invalid configuration.
 
 Main commands in this script:
 * `fin remote project|p` - work with project:
@@ -43,15 +45,15 @@ Main commands in this script:
     * `fin remote project open|o|www (path)` - open public project URL with `open` command
 * `fin remote proxy|x` - run docker-compose commands on nginx proxy, all extra parameters are same like in `docker-compose` command
 * `fin remote config|cfg|c` - shows stack config
-    * `fin remote config setup|set|s (-f|--force)` - save new config to *.env.docksal-remote* file
-    * `fin remote config variables|get|g` - display config from *.env.docksal-remote* file
+    * `fin remote config setup|set|s (-f|--force)` - save new config to *.docksal/docksal-remote.env* file
+    * `fin remote config variables|get|g` - display config from *.docksal/docksal-remote.env* file
     * `fin remote config check|k` - check if config is loaded to shell
     * `fin remote config docksal|d` - Docksal configuration
     * `fin remote config ngnix|www|w` - Ngnix server configuration
     * `fin remote config containers|container|c` - Docker containers configuration
     * `fin remote config networks|network|net|n` - Docker networks configuration
     * `fin remote config volumes|volume|vol|v` - Docker volumes server configuration
-* `eval $(fin remote config-dump)` - export config from *.env.docksal-remote* file to current shell
+* `eval $(fin remote config-dump)` - export config from *.docksal/docksal-remote.env* file to current shell
 
 Short commands in this script:
 * `fin remote up` - alias to `fin remote project up`
