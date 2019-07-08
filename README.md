@@ -5,17 +5,16 @@ Allow to run fin on remote server with custom remote domain.
 
 ## Installation
 
-Install on local computer:
-1. [Docksal](https://docksal.io/installation)
-2. *fin remote* command:
+1. Install [Docksal](https://docksal.io/installation) on local computer
+2. Get *fin remote* command:
 
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/bin/install)
+bash <(curl -fsSL https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/install)
 ```
 
 Uninstall from local computer:
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/bin/uninstall)
+bash <(curl -fsSL https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/uninstall)
 ```
 
 ## Configuration

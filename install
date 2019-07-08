@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+if [[ "$1" == "devel" ]]; then
+    echo "Installing in devel mode..."
+    files_list=(
+        bin/remote
+        template/docker-nginx-proxy.yml
+        template/docksal-remote-default.yml
+        template/docksal-remote-default-nodb.yml
+    )
+    for name in "${files_list[@]}"; do
+        repo_file_path=${name}
+        local_file_path=~/.docksal/commands/$(basename ${name})
+        repo_file_sum=$(shasum ${repo_file_path} | awk '{print $1}')
+        local_file_sum=$(shasum ${local_file_path} | awk '{print $1}')
+        (
+            [[ "$(shasum ${repo_file_path} | awk '{print $1}')" != "$(shasum ${local_file_path} | awk '{print $1}')" ]] &&
+                echo "Copying file '$name'..." &&
+                cp ${repo_file_path} ${local_file_path}
+        ) || echo "File already in place '$name' :)"
+    done
+
+else
+    echo "Installing 'fin remote' command..."
+    mkdir -p ~/.docksal/commands/ &&
+        curl -fsSL "https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/bin/remote?r=${RANDOM}" -o ~/.docksal/commands/remote &&
+        curl -fsSL "https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/template/docker-nginx-proxy.yml?r=${RANDOM}" -o ~/.docksal/commands/docker-nginx-proxy.yml &&
+        curl -fsSL "https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/template/docksal-remote-default.yml?r=${RANDOM}" -o ~/.docksal/commands/docksal-remote-default.yml &&
+        curl -fsSL "https://raw.githubusercontent.com/Flower7C3/docksal-remote/master/template/docksal-remote-default-nodb.yml?r=${RANDOM}" -o ~/.docksal/commands/docksal-remote-default-nodb.yml &&
+        chmod +x ~/.docksal/commands/remote
+fi
